@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Environment variables / secrets
+.env
+
+# Android generated files
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
