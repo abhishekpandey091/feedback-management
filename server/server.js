@@ -3,6 +3,9 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const authRoutes = require("./routes/authRoutes");
+const protect = require("./middleware/authMiddleware");
+const teacherRoutes = require("./routes/teacherRoutes");
+const formRoutes = require("./routes/formRoutes");
 
 const app = express();
 
@@ -18,10 +21,19 @@ mongoose
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
+app.use("/api/teachers", teacherRoutes);
+app.use("/api/forms", formRoutes);
 
 app.get("/api/test", (req, res) => {
   res.json({
     message: "Backend is working",
+  });
+});
+
+app.get("/api/protected", protect, (req, res) => {
+  res.json({
+    message: "You accessed a protected route",
+    user: req.user,
   });
 });
 
