@@ -143,4 +143,40 @@ router.delete("/:id", protect, adminOnly, async (req, res) => {
   }
 });
 
+router.patch("/:id/toggle-active", protect, adminOnly, async (req, res) => {
+  try {
+    const teacher = await User.findOne({
+      _id: req.params.id,
+      role: "teacher",
+    });
+
+    if (!teacher) {
+      return res.status(404).json({
+        message: "Teacher not found",
+      });
+    }
+
+    teacher.isActive = !teacher.isActive;
+
+    await teacher.save();
+
+    res.status(200).json({
+      message: `Teacher ${teacher.isActive ? "activated" : "deactivated"} successfully`,
+      teacher: {
+        id: teacher._id,
+        fullName: teacher.fullName,
+        email: teacher.email,
+        role: teacher.role,
+        isActive: teacher.isActive,
+      },
+    });
+  } catch (error) {
+    console.error("TOGGLE TEACHER ERROR:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+});
+
 module.exports = router;

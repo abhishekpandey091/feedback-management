@@ -319,4 +319,51 @@ router.get("/:formId", protect, async (req, res) => {
     });
   }
 });
+
+// Admin rejects a pending form
+router.patch("/:formId/reject", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Access denied. Admin only.",
+      });
+    }
+
+    const { reason } = req.body;
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        message: "Rejection reason is required",
+      });
+    }
+
+    const form = await Form.findById(req.params.formId);
+
+    if (!form) {
+      return res.status(404).json({
+        message: "Form not found",
+      });
+    }
+
+    form.approvalStatus = "rejected";
+    form.rejectionReason = reason.trim();
+    form.isActive = false;
+    form.activatedAt = null;
+    form.approvedBy = null;
+    form.approvedAt = null;
+
+    await form.save();
+
+    res.status(200).json({
+      message: "Form rejected successfully",
+      form,
+    });
+  } catch (error) {
+    console.error("REJECT FORM ERROR:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+});
 module.exports = router;
