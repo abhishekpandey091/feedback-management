@@ -39,6 +39,13 @@
         android:text="Login"
         android:layout_marginTop="24dp" />
 
+    <Button
+        android:id="@+id/studentFeedbackButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Student Feedback"
+        android:layout_marginTop="12dp" />
+
     <ProgressBar
         android:id="@+id/progressBar"
         android:layout_width="wrap_content"

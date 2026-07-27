@@ -24,10 +24,17 @@ data class CreateFormRequest(
 
 data class CreateQuestion(
     val questionText: String,
-    val type: String
+    val type: String,
+    val options: List<String> = emptyList(),
+    val maxStars: Int = 10,
+    val required: Boolean = true
 )
 
 data class CreateFormResponse(
     val message: String,
     val form: FormData
+)
+
+data class RejectFormRequest(
+    val reason: String
 )

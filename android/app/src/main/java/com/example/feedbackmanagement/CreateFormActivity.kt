@@ -15,27 +15,22 @@ class CreateFormActivity : AppCompatActivity() {
         setContentView(R.layout.activity_create_form)
 
         val titleEditText = findViewById<EditText>(R.id.titleEditText)
-        val descriptionEditText =
-            findViewById<EditText>(R.id.descriptionEditText)
+        val descriptionEditText = findViewById<EditText>(R.id.descriptionEditText)
+        val questionEditText = findViewById<EditText>(R.id.questionEditText)
+        val questionTypeSpinner = findViewById<Spinner>(R.id.questionTypeSpinner)
+        val optionsEditText = findViewById<EditText>(R.id.optionsEditText)
 
-        val questionEditText =
-            findViewById<EditText>(R.id.questionEditText)
+        val addQuestionButton = findViewById<Button>(R.id.addQuestionButton)
+        val createButton = findViewById<Button>(R.id.createFormButton)
 
-        val questionTypeSpinner =
-            findViewById<Spinner>(R.id.questionTypeSpinner)
-
-        val createButton =
-            findViewById<Button>(R.id.createFormButton)
-
-        val progressBar =
-            findViewById<ProgressBar>(R.id.createProgressBar)
-
-        val statusText =
-            findViewById<TextView>(R.id.createStatusText)
+        val questionsAddedText = findViewById<TextView>(R.id.questionsAddedText)
+        val statusText = findViewById<TextView>(R.id.createStatusText)
+        val progressBar = findViewById<ProgressBar>(R.id.createProgressBar)
 
         val sessionManager = SessionManager(this)
 
-        // These must match the enum in Form.js
+        val addedQuestions = mutableListOf<CreateQuestion>()
+
         val questionTypes = listOf(
             "short",
             "paragraph",
@@ -58,21 +53,64 @@ class CreateFormActivity : AppCompatActivity() {
 
         questionTypeSpinner.adapter = adapter
 
+        // ADD QUESTION
+        addQuestionButton.setOnClickListener {
+
+            val question = questionEditText.text.toString().trim()
+            val questionType = questionTypeSpinner.selectedItem.toString()
+
+            val options = optionsEditText.text.toString()
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+
+            if (question.isEmpty()) {
+                statusText.text = "Enter a question"
+                return@setOnClickListener
+            }
+
+            if (
+                questionType in listOf("mcq", "checkbox", "dropdown") &&
+                options.size < 2
+            ) {
+                statusText.text =
+                    "Enter at least 2 comma-separated options"
+
+                return@setOnClickListener
+            }
+
+            addedQuestions.add(
+                CreateQuestion(
+                    questionText = question,
+                    type = questionType,
+                    options = options,
+                    maxStars = 10,
+                    required = true
+                )
+            )
+
+            questionsAddedText.text =
+                "Questions added: ${addedQuestions.size}"
+
+            questionEditText.text.clear()
+            optionsEditText.text.clear()
+
+            statusText.text = "Question added"
+        }
+
+        // CREATE FORM
         createButton.setOnClickListener {
 
             val title = titleEditText.text.toString().trim()
-            val description =
-                descriptionEditText.text.toString().trim()
+            val description = descriptionEditText.text.toString().trim()
 
-            val question =
-                questionEditText.text.toString().trim()
+            if (title.isEmpty()) {
+                statusText.text = "Form title is required"
+                return@setOnClickListener
+            }
 
-            val questionType =
-                questionTypeSpinner.selectedItem.toString()
-
-            if (title.isEmpty() || question.isEmpty()) {
-                statusText.text =
-                    "Title and question are required"
+            if (addedQuestions.isEmpty()) {
+                statusText.text = "Add at least one question first"
                 return@setOnClickListener
             }
 
@@ -83,19 +121,16 @@ class CreateFormActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            // IMPORTANT: send questions BEFORE clearing the list
             val request = CreateFormRequest(
                 title = title,
                 description = description,
-                questions = listOf(
-                    CreateQuestion(
-                        questionText = question,
-                        type = questionType
-                    )
-                )
+                questions = addedQuestions.toList()
             )
 
             progressBar.visibility = View.VISIBLE
             createButton.isEnabled = false
+            addQuestionButton.isEnabled = false
             statusText.text = ""
 
             ApiClient.apiService
@@ -111,6 +146,7 @@ class CreateFormActivity : AppCompatActivity() {
                     ) {
                         progressBar.visibility = View.GONE
                         createButton.isEnabled = true
+                        addQuestionButton.isEnabled = true
 
                         if (
                             response.isSuccessful &&
@@ -122,6 +158,13 @@ class CreateFormActivity : AppCompatActivity() {
                             titleEditText.text.clear()
                             descriptionEditText.text.clear()
                             questionEditText.text.clear()
+                            optionsEditText.text.clear()
+
+                            // Clear ONLY after successful creation
+                            addedQuestions.clear()
+
+                            questionsAddedText.text =
+                                "Questions added: 0"
 
                         } else {
                             statusText.text =
@@ -135,6 +178,7 @@ class CreateFormActivity : AppCompatActivity() {
                     ) {
                         progressBar.visibility = View.GONE
                         createButton.isEnabled = true
+                        addQuestionButton.isEnabled = true
 
                         statusText.text =
                             "Connection error: ${t.message}"

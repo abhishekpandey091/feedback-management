@@ -56,12 +56,34 @@
             android:layout_height="50dp"
             android:layout_marginTop="12dp" />
 
+        <EditText
+            android:id="@+id/optionsEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Options separated by commas (for MCQ/Checkbox/Dropdown)"
+            android:inputType="text"
+            android:layout_marginTop="12dp" />
+
         <Button
             android:id="@+id/createFormButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Create Form"
             android:layout_marginTop="28dp" />
+
+        <Button
+            android:id="@+id/addQuestionButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Add Question"
+            android:layout_marginTop="16dp" />
+
+        <TextView
+            android:id="@+id/questionsAddedText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Questions added: 0"
+            android:layout_marginTop="10dp" />
 
         <ProgressBar
             android:id="@+id/createProgressBar"

@@ -25,6 +25,8 @@ class MainActivity : AppCompatActivity() {
         val loginButton = findViewById<Button>(R.id.loginButton)
         val progressBar = findViewById<ProgressBar>(R.id.progressBar)
         val statusText = findViewById<TextView>(R.id.statusText)
+        val studentFeedbackButton =
+            findViewById<Button>(R.id.studentFeedbackButton)
 
         loginButton.setOnClickListener {
 
@@ -104,6 +106,14 @@ class MainActivity : AppCompatActivity() {
                             "Connection error: ${t.message}"
                     }
                 })
+        }
+
+        studentFeedbackButton.setOnClickListener {
+            val intent = Intent(
+                this,
+                StudentFeedbackActivity::class.java
+            )
+            startActivity(intent)
         }
     }
 }

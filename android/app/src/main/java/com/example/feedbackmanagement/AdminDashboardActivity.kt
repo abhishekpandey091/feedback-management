@@ -37,5 +37,17 @@ class AdminDashboardActivity : AppCompatActivity() {
                 Intent(this, ManageTeachersActivity::class.java)
             )
         }
+
+        formsButton.setOnClickListener {
+            startActivity(
+                Intent(this, MyFormsActivity::class.java)
+            )
+        }
+
+        formsButton.setOnClickListener {
+            startActivity(
+                Intent(this, AdminFormsActivity::class.java)
+            )
+        }
     }
 }
