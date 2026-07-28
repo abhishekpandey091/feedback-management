@@ -26,6 +26,8 @@ data class SubmitFeedbackRequest(
     val studentName: String,
     val batch: String,
     val enrollmentNumber: String,
+    val attendanceStatus: String,
+    val lowRatingReason: String?,
     val answers: List<StudentAnswer>
 )
 

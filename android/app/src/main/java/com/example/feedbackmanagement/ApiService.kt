@@ -9,6 +9,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.Path
 import retrofit2.http.PATCH
 
+
 interface ApiService {
 
     @POST("api/auth/login")
@@ -84,4 +85,22 @@ interface ApiService {
         @Path("formId") formId: String,
         @Body request: SubmitFeedbackRequest
     ): Call<SubmitFeedbackResponse>
+
+    @GET("api/responses/form/{formId}")
+    fun getFormResponses(
+        @Header("Authorization") token: String,
+        @Path("formId") formId: String
+    ): Call<FormResponsesResponse>
+
+    @GET("api/responses/form/{formId}/summary")
+    fun getResponseSummary(
+        @Header("Authorization") token: String,
+        @Path("formId") formId: String
+    ): Call<SummaryResponse>
+
+    @GET("api/responses/form/{formId}/lower-feedback")
+    fun getLowerFeedback(
+        @Header("Authorization") token: String,
+        @Path("formId") formId: String
+    ): Call<LowerFeedbackResponse>
 }

@@ -224,6 +224,27 @@ class AdminFormsActivity : AppCompatActivity() {
         }
 
         formsContainer.addView(qrButton)
+
+
+        val responsesButton = Button(this)
+        responsesButton.text = "Responses"
+
+        responsesButton.setOnClickListener {
+
+            val intent = android.content.Intent(
+                this,
+                ResponsesActivity::class.java
+            )
+
+            intent.putExtra(
+                "FORM_ID",
+                form._id
+            )
+
+            startActivity(intent)
+        }
+
+        formsContainer.addView(responsesButton)
     }
 
     private fun approveForm(formId: String, token: String) {

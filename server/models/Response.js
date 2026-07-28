@@ -41,6 +41,18 @@ const responseSchema = new mongoose.Schema(
       trim: true,
     },
 
+    attendanceStatus: {
+      type: String,
+      enum: ["Present", "Absent"],
+      required: true,
+    },
+
+    lowRatingReason: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
     answers: {
       type: [answerSchema],
       required: true,
@@ -53,17 +65,6 @@ const responseSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
-);
-
-// Prevent same student submitting same form twice
-responseSchema.index(
-  {
-    formId: 1,
-    enrollmentNumber: 1,
-  },
-  {
-    unique: true,
   },
 );
 

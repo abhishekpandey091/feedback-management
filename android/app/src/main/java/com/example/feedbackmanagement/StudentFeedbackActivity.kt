@@ -146,6 +146,28 @@ class StudentFeedbackActivity : AppCompatActivity() {
 
         formContainer.addView(batchInput)
 
+        // ATTENDANCE STATUS
+
+        val attendanceTitle = TextView(this)
+        attendanceTitle.text = "Attendance Status *"
+        attendanceTitle.textSize = 18f
+        attendanceTitle.setPadding(0, 28, 0, 8)
+
+        formContainer.addView(attendanceTitle)
+
+        val attendanceGroup = RadioGroup(this)
+
+        val presentButton = RadioButton(this)
+        presentButton.text = "Present"
+
+        val absentButton = RadioButton(this)
+        absentButton.text = "Absent"
+
+        attendanceGroup.addView(presentButton)
+        attendanceGroup.addView(absentButton)
+
+        formContainer.addView(attendanceGroup)
+
         // QUESTIONS
 
         form.questions.forEach { question ->
@@ -327,6 +349,24 @@ class StudentFeedbackActivity : AppCompatActivity() {
             }
         }
 
+        // LOW RATING REASON
+
+        val lowRatingReasonInput = EditText(this)
+
+        lowRatingReasonInput.hint =
+            "Reason for rating below 8 (if applicable)"
+
+        lowRatingReasonInput.inputType =
+            InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_FLAG_MULTI_LINE
+
+        lowRatingReasonInput.minLines = 2
+        lowRatingReasonInput.maxLines = 4
+
+        formContainer.addView(lowRatingReasonInput)
+
+
+
         // SUBMIT BUTTON
 
         val submitButton = Button(this)
@@ -358,126 +398,179 @@ class StudentFeedbackActivity : AppCompatActivity() {
             val answers =
                 mutableListOf<StudentAnswer>()
 
-            for (question in form.questions) {
+            val attendanceStatus =
+                when (attendanceGroup.checkedRadioButtonId) {
 
-                val view =
-                    answerViews[question._id]
+                    presentButton.id -> "Present"
 
-                val answer: Any =
-                    when (question.type) {
+                    absentButton.id -> "Absent"
 
-                        "short",
-                        "paragraph" -> {
+                    else -> ""
+                }
 
-                            (view as EditText)
-                                .text
-                                .toString()
-                                .trim()
-                        }
+            if (attendanceStatus.isEmpty()) {
 
-                        "mcq",
-                        "yes_no" -> {
+                statusText.text =
+                    "Please select Present or Absent"
 
-                            val group =
-                                view as RadioGroup
+                return@setOnClickListener
+            }
 
-                            val selectedId =
-                                group.checkedRadioButtonId
+            if (attendanceStatus == "Present") {
 
-                            if (selectedId == -1) {
-                                ""
-                            } else {
+                for (question in form.questions) {
 
-                                findViewById<RadioButton>(
-                                    selectedId
-                                ).text.toString()
+                    val view =
+                        answerViews[question._id]
+
+                    val answer: Any =
+                        when (question.type) {
+
+                            "short",
+                            "paragraph" -> {
+
+                                (view as EditText)
+                                    .text
+                                    .toString()
+                                    .trim()
                             }
-                        }
 
-                        "checkbox" -> {
+                            "mcq",
+                            "yes_no" -> {
 
-                            val container =
-                                view as LinearLayout
+                                val group =
+                                    view as RadioGroup
 
-                            val selected =
-                                mutableListOf<String>()
+                                val selectedId =
+                                    group.checkedRadioButtonId
 
-                            for (
-                            i in 0 until
-                                    container.childCount
-                            ) {
+                                if (selectedId == -1) {
+                                    ""
+                                } else {
 
-                                val checkbox =
-                                    container.getChildAt(i)
-                                            as CheckBox
-
-                                if (checkbox.isChecked) {
-                                    selected.add(
-                                        checkbox.text.toString()
-                                    )
+                                    findViewById<RadioButton>(
+                                        selectedId
+                                    ).text.toString()
                                 }
                             }
 
-                            selected
-                        }
+                            "checkbox" -> {
 
-                        "dropdown" -> {
+                                val container =
+                                    view as LinearLayout
 
-                            val spinner =
-                                view as Spinner
+                                val selected =
+                                    mutableListOf<String>()
 
-                            if (
-                                spinner.selectedItemPosition
-                                == 0
-                            ) {
-                                ""
-                            } else {
-                                spinner.selectedItem
-                                    .toString()
+                                for (
+                                i in 0 until
+                                        container.childCount
+                                ) {
+
+                                    val checkbox =
+                                        container.getChildAt(i)
+                                                as CheckBox
+
+                                    if (checkbox.isChecked) {
+                                        selected.add(
+                                            checkbox.text.toString()
+                                        )
+                                    }
+                                }
+
+                                selected
                             }
+
+                            "dropdown" -> {
+
+                                val spinner =
+                                    view as Spinner
+
+                                if (
+                                    spinner.selectedItemPosition
+                                    == 0
+                                ) {
+                                    ""
+                                } else {
+                                    spinner.selectedItem
+                                        .toString()
+                                }
+                            }
+
+                            "star_rating" -> {
+
+                                val ratingBar =
+                                    view as RatingBar
+
+                                ratingBar.rating.toInt()
+                            }
+
+                            else -> ""
                         }
 
-                        "star_rating" -> {
+                    // REQUIRED VALIDATION
+                    val empty =
+                        when (answer) {
 
+                            is String ->
+                                answer.isBlank()
+
+                            is List<*> ->
+                                answer.isEmpty()
+
+                            is Int ->
+                                answer == 0
+
+                            else -> false
+                        }
+
+                    if (question.required && empty) {
+
+                        statusText.text =
+                            "Please answer: ${question.questionText}"
+
+                        return@setOnClickListener
+                    }
+
+                    answers.add(
+                        StudentAnswer(
+                            questionId = question._id,
+                            answer = answer
+                        )
+                    )
+                }
+            }
+
+            val lowRatingReason =
+                lowRatingReasonInput.text
+                    .toString()
+                    .trim()
+                    .ifEmpty { null }
+
+            if (attendanceStatus == "Present") {
+
+                val hasLowRating =
+                    form.questions.any { question ->
+
+                        if (question.type != "star_rating") {
+                            false
+                        } else {
                             val ratingBar =
-                                view as RatingBar
+                                answerViews[question._id] as? RatingBar
 
-                            ratingBar.rating.toInt()
+                            (ratingBar?.rating ?: 0f) in 1f..7f
                         }
-
-                        else -> ""
                     }
 
-                // REQUIRED VALIDATION
-                val empty =
-                    when (answer) {
-
-                        is String ->
-                            answer.isBlank()
-
-                        is List<*> ->
-                            answer.isEmpty()
-
-                        is Int ->
-                            answer == 0
-
-                        else -> false
-                    }
-
-                if (question.required && empty) {
-
+                if (
+                    hasLowRating &&
+                    lowRatingReason.isNullOrBlank()
+                ) {
                     statusText.text =
-                        "Please answer: ${question.questionText}"
+                        "Please enter a reason for rating below 8"
 
                     return@setOnClickListener
                 }
-
-                answers.add(
-                    StudentAnswer(
-                        questionId = question._id,
-                        answer = answer
-                    )
-                )
             }
 
             submitFeedback(
@@ -485,6 +578,8 @@ class StudentFeedbackActivity : AppCompatActivity() {
                 name,
                 enrollment,
                 batch,
+                attendanceStatus,
+                lowRatingReason,
                 answers
             )
         }
@@ -492,13 +587,18 @@ class StudentFeedbackActivity : AppCompatActivity() {
         formContainer.addView(submitButton)
     }
 
+
+
+
     private fun submitFeedback(
         formId: String,
         name: String,
         enrollment: String,
         batch: String,
+        attendanceStatus: String,
+        lowRatingReason: String?,
         answers: List<StudentAnswer>
-    ) {
+    ){
 
         progressBar.visibility = View.VISIBLE
         statusText.text = ""
@@ -508,8 +608,14 @@ class StudentFeedbackActivity : AppCompatActivity() {
                 studentName = name,
                 batch = batch,
                 enrollmentNumber = enrollment,
+                attendanceStatus = attendanceStatus,
+                lowRatingReason = lowRatingReason,
                 answers = answers
             )
+
+
+
+
 
         ApiClient.apiService
             .submitFeedback(
