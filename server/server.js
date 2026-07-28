@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const mongoose = require("mongoose");
+
 const authRoutes = require("./routes/authRoutes");
 const protect = require("./middleware/authMiddleware");
 const teacherRoutes = require("./routes/teacherRoutes");
@@ -10,28 +11,22 @@ const studentRoutes = require("./routes/studentRoutes");
 
 const app = express();
 
-mongoose
-  .connect("mongodb://127.0.0.1:27017/feedback_app")
-  .then(() => {
-    console.log("MongoDB connected");
-  })
-  .catch((error) => {
-    console.log("MongoDB connection failed:", error);
-  });
-
 app.use(express.json());
 
+// Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/teachers", teacherRoutes);
 app.use("/api/forms", formRoutes);
 app.use("/api/public", studentRoutes);
 
+// Test route
 app.get("/api/test", (req, res) => {
   res.json({
     message: "Backend is working",
   });
 });
 
+// Protected test route
 app.get("/api/protected", protect, (req, res) => {
   res.json({
     message: "You accessed a protected route",
@@ -39,6 +34,19 @@ app.get("/api/protected", protect, (req, res) => {
   });
 });
 
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
+// MongoDB
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log("MongoDB connected");
+  })
+  .catch((error) => {
+    console.error("MongoDB connection failed:", error);
+  });
+
+// Render and similar hosts provide PORT automatically
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
