@@ -8,6 +8,7 @@ const protect = require("./middleware/authMiddleware");
 const teacherRoutes = require("./routes/teacherRoutes");
 const formRoutes = require("./routes/formRoutes");
 const studentRoutes = require("./routes/studentRoutes");
+const responseRoutes = require("./routes/responseRoutes");
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/teachers", teacherRoutes);
 app.use("/api/forms", formRoutes);
 app.use("/api/public", studentRoutes);
+app.use("/api/responses", responseRoutes);
 
 // Test route
 app.get("/api/test", (req, res) => {

@@ -4,24 +4,52 @@ const Response = require("../models/Response");
 
 const router = express.Router();
 
-// Public: Get an active feedback form
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
+
+// Check whether form has expired
+async function checkFormActive(form) {
+  if (!form.isActive) return false;
+
+  if (
+    form.activatedAt &&
+    Date.now() - new Date(form.activatedAt).getTime() >= FIFTEEN_MINUTES
+  ) {
+    form.isActive = false;
+    await form.save();
+    return false;
+  }
+
+  return true;
+}
+
+// PUBLIC: Get form
 router.get("/forms/:formId", async (req, res) => {
   try {
-    const form = await Form.findOne({
-      _id: req.params.formId,
-      isActive: true,
-      approvalStatus: "approved",
-    }).select("title description questions allowedBatches assignedTo");
+    const form = await Form.findById(req.params.formId);
 
-    if (!form) {
+    if (!form || form.approvalStatus !== "approved") {
       return res.status(404).json({
-        message: "Active form not found",
+        message: "Form not found",
+      });
+    }
+
+    const active = await checkFormActive(form);
+
+    if (!active) {
+      return res.status(410).json({
+        message: "This feedback form is deactivated",
       });
     }
 
     res.status(200).json({
       message: "Form fetched successfully",
-      form,
+      form: {
+        _id: form._id,
+        title: form.title,
+        description: form.description,
+        questions: form.questions,
+        allowedBatches: form.allowedBatches,
+      },
     });
   } catch (error) {
     console.error("PUBLIC FORM ERROR:", error);
@@ -32,7 +60,7 @@ router.get("/forms/:formId", async (req, res) => {
   }
 });
 
-// Public: Submit feedback
+// PUBLIC: Submit feedback
 router.post("/forms/:formId/responses", async (req, res) => {
   try {
     const { studentName, batch, enrollmentNumber, answers } = req.body;
@@ -48,19 +76,23 @@ router.post("/forms/:formId/responses", async (req, res) => {
       });
     }
 
-    const form = await Form.findOne({
-      _id: req.params.formId,
-      isActive: true,
-      approvalStatus: "approved",
-    });
+    const form = await Form.findById(req.params.formId);
 
-    if (!form) {
+    if (!form || form.approvalStatus !== "approved") {
       return res.status(404).json({
-        message: "Active form not found",
+        message: "Form not found",
       });
     }
 
-    // Validate batch when form has restricted batches
+    const active = await checkFormActive(form);
+
+    if (!active) {
+      return res.status(410).json({
+        message: "This feedback form is deactivated",
+      });
+    }
+
+    // Allowed batch validation
     if (
       form.allowedBatches.length > 0 &&
       !form.allowedBatches.includes(batch)
@@ -70,31 +102,90 @@ router.post("/forms/:formId/responses", async (req, res) => {
       });
     }
 
-    // Validate required questions
+    // Validate answers
     for (const question of form.questions) {
-      if (!question.required) continue;
-
       const submittedAnswer = answers.find(
         (item) => item.questionId?.toString() === question._id.toString(),
       );
 
+      // Required validation
+      if (question.required) {
+        if (
+          !submittedAnswer ||
+          submittedAnswer.answer === "" ||
+          submittedAnswer.answer === null ||
+          submittedAnswer.answer === undefined ||
+          (Array.isArray(submittedAnswer.answer) &&
+            submittedAnswer.answer.length === 0)
+        ) {
+          return res.status(400).json({
+            message: `Answer required: ${question.questionText}`,
+          });
+        }
+      }
+
+      if (!submittedAnswer) continue;
+
+      // Validate MCQ/dropdown
       if (
-        !submittedAnswer ||
-        submittedAnswer.answer === "" ||
-        submittedAnswer.answer === null ||
-        submittedAnswer.answer === undefined
+        ["mcq", "dropdown"].includes(question.type) &&
+        !question.options.includes(submittedAnswer.answer)
       ) {
         return res.status(400).json({
-          message: `Answer required: ${question.questionText}`,
+          message: `Invalid answer for: ${question.questionText}`,
         });
+      }
+
+      // Validate checkbox
+      if (question.type === "checkbox") {
+        if (!Array.isArray(submittedAnswer.answer)) {
+          return res.status(400).json({
+            message: `Invalid checkbox answer: ${question.questionText}`,
+          });
+        }
+
+        const invalidOption = submittedAnswer.answer.some(
+          (option) => !question.options.includes(option),
+        );
+
+        if (invalidOption) {
+          return res.status(400).json({
+            message: `Invalid option for: ${question.questionText}`,
+          });
+        }
+      }
+
+      // Validate Yes / No
+      if (
+        question.type === "yes_no" &&
+        !["Yes", "No"].includes(submittedAnswer.answer)
+      ) {
+        return res.status(400).json({
+          message: `Invalid Yes/No answer: ${question.questionText}`,
+        });
+      }
+
+      // Validate star rating
+      if (question.type === "star_rating") {
+        const rating = Number(submittedAnswer.answer);
+
+        if (
+          !Number.isInteger(rating) ||
+          rating < 1 ||
+          rating > question.maxStars
+        ) {
+          return res.status(400).json({
+            message: `Invalid rating for: ${question.questionText}`,
+          });
+        }
       }
     }
 
     const response = await Response.create({
       formId: form._id,
-      studentName,
-      batch,
-      enrollmentNumber,
+      studentName: studentName.trim(),
+      batch: batch.trim(),
+      enrollmentNumber: enrollmentNumber.trim(),
       answers,
     });
 
@@ -103,7 +194,6 @@ router.post("/forms/:formId/responses", async (req, res) => {
       responseId: response._id,
     });
   } catch (error) {
-    // Duplicate form + enrollment number
     if (error.code === 11000) {
       return res.status(409).json({
         message: "You have already submitted this form",
