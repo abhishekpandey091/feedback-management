@@ -17,9 +17,9 @@ app.use(express.json());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/teachers", teacherRoutes);
-app.use("/api/forms", formRoutes);
 app.use("/api/public", studentRoutes);
 app.use("/api/responses", responseRoutes);
+app.use("/api/forms", formRoutes);
 
 // Test route
 app.get("/api/test", (req, res) => {

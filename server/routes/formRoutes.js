@@ -492,7 +492,6 @@ router.patch("/:formId", protect, async (req, res) => {
         });
       }
 
-      // Admin can delete any form
       if (req.user.role === "teacher") {
         const userId = req.user.userId.toString();
 
@@ -511,28 +510,19 @@ router.patch("/:formId", protect, async (req, res) => {
         });
       }
 
-      // Delete responses first
-      const result = await Response.deleteMany({
+      await Response.deleteMany({
         formId: form._id,
       });
 
-      // Delete form
       await Form.findByIdAndDelete(form._id);
 
-      res.status(200).json({
+      return res.status(200).json({
         message: "Form and responses deleted successfully",
-        deletedResponses: result.deletedCount,
       });
     } catch (error) {
       console.error("DELETE FORM ERROR:", error);
 
-      if (error.name === "CastError") {
-        return res.status(400).json({
-          message: "Invalid form ID",
-        });
-      }
-
-      res.status(500).json({
+      return res.status(500).json({
         message: "Server error",
       });
     }
