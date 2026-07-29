@@ -1,16 +1,26 @@
-# Dependencies
-node_modules/
-
-# Environment variables / secrets
+# Environment / secrets
 .env
+server/.env
+*.jks
+*.keystore
 
-# Android generated files
+# Node
+node_modules/
+npm-debug.log*
+
+# Android / Gradle
 .gradle/
 build/
+**/build/
 local.properties
 *.iml
-.idea/
 
-# OS/editor files
+# Android Studio / IntelliJ
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS
 .DS_Store
 Thumbs.db
