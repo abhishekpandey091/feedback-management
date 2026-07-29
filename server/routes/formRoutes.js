@@ -2,6 +2,7 @@ const express = require("express");
 const Form = require("../models/Form");
 const User = require("../models/User");
 const protect = require("../middleware/authMiddleware");
+const Response = require("../models/Response");
 
 const router = express.Router();
 
@@ -155,9 +156,9 @@ router.patch("/:formId/approve", protect, async (req, res) => {
 // Activate an approved form
 router.patch("/:formId/activate", protect, async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
+    if (!["admin", "teacher"].includes(req.user.role)) {
       return res.status(403).json({
-        message: "Access denied. Admin only.",
+        message: "Access denied",
       });
     }
 
@@ -166,6 +167,24 @@ router.patch("/:formId/activate", protect, async (req, res) => {
     if (!form) {
       return res.status(404).json({
         message: "Form not found",
+      });
+    }
+
+    if (
+      req.user.role === "teacher" &&
+      form.assignedTo?.toString() !== req.user.userId.toString()
+    ) {
+      return res.status(403).json({
+        message: "You can only activate forms assigned to you",
+      });
+    }
+
+    if (
+      req.user.role === "teacher" &&
+      form.assignedTo?.toString() !== req.user.userId.toString()
+    ) {
+      return res.status(403).json({
+        message: "You can only deactivate forms assigned to you",
       });
     }
 
@@ -443,5 +462,101 @@ router.patch("/:formId", protect, async (req, res) => {
       message: "Server error",
     });
   }
+
+  router.delete("/:formId", protect, async (req, res) => {
+    try {
+      const form = await Form.findById(req.params.formId);
+
+      if (!form) {
+        return res.status(404).json({
+          message: "Form not found",
+        });
+      }
+
+      // Admin can delete any form
+      if (req.user.role === "teacher") {
+        const userId = req.user.userId.toString();
+
+        const isCreator = form.createdBy?.toString() === userId;
+
+        const isAssigned = form.assignedTo?.toString() === userId;
+
+        if (!isCreator && !isAssigned) {
+          return res.status(403).json({
+            message: "You cannot delete this form",
+          });
+        }
+      } else if (req.user.role !== "admin") {
+        return res.status(403).json({
+          message: "Access denied",
+        });
+      }
+
+      // Delete responses first
+      const result = await Response.deleteMany({
+        formId: form._id,
+      });
+
+      // Delete form
+      await Form.findByIdAndDelete(form._id);
+
+      res.status(200).json({
+        message: "Form and responses deleted successfully",
+        deletedResponses: result.deletedCount,
+      });
+    } catch (error) {
+      console.error("DELETE FORM ERROR:", error);
+
+      if (error.name === "CastError") {
+        return res.status(400).json({
+          message: "Invalid form ID",
+        });
+      }
+
+      res.status(500).json({
+        message: "Server error",
+      });
+    }
+  });
+
+  router.patch("/:formId/deactivate", protect, async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({
+          message: "Access denied. Admin only.",
+        });
+      }
+
+      const form = await Form.findById(req.params.formId);
+
+      if (!form) {
+        return res.status(404).json({
+          message: "Form not found",
+        });
+      }
+
+      if (!form.isActive) {
+        return res.status(400).json({
+          message: "Form is already inactive",
+        });
+      }
+
+      form.isActive = false;
+      form.activatedAt = null;
+
+      await form.save();
+
+      res.status(200).json({
+        message: "Form deactivated successfully",
+        form,
+      });
+    } catch (error) {
+      console.error("DEACTIVATE FORM ERROR:", error);
+
+      res.status(500).json({
+        message: "Server error",
+      });
+    }
+  });
 });
 module.exports = router;
