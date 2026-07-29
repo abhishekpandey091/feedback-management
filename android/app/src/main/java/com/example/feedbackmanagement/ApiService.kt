@@ -9,6 +9,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.Path
 import retrofit2.http.PATCH
 import retrofit2.http.PUT
+import okhttp3.ResponseBody
 
 
 interface ApiService {
@@ -118,4 +119,11 @@ interface ApiService {
         @Path("responseId") responseId: String,
         @Body request: ReFeedbackRequest
     ): Call<ReFeedbackSubmitResponse>
+
+
+    @GET("api/responses/form/{formId}/export")
+    fun exportResponses(
+        @Header("Authorization") token: String,
+        @Path("formId") formId: String
+    ): Call<ResponseBody>
 }

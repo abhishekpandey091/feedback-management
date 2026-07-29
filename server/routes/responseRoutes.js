@@ -2,6 +2,7 @@ const express = require("express");
 const Response = require("../models/Response");
 const Form = require("../models/Form");
 const protect = require("../middleware/authMiddleware");
+const { Parser } = require("json2csv");
 
 const router = express.Router();
 
@@ -427,6 +428,85 @@ router.put("/:responseId/refeedback", protect, async (req, res) => {
     console.error("SUBMIT RE-FEEDBACK ERROR:", error);
 
     res.status(500).json({
+      message: "Server error",
+    });
+  }
+});
+
+// ======================================================
+// EXPORT RESPONSES AS CSV
+// ======================================================
+
+router.get("/form/:formId/export", protect, async (req, res) => {
+  try {
+    const form = await Form.findById(req.params.formId);
+
+    if (!form) {
+      return res.status(404).json({
+        message: "Form not found",
+      });
+    }
+
+    if (!(await canAccessForm(req.user, form))) {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    const responses = await Response.find({
+      formId: form._id,
+    }).sort({ submittedAt: -1 });
+
+    if (responses.length === 0) {
+      return res.status(404).json({
+        message: "No responses available to export",
+      });
+    }
+
+    const rows = responses.map((response) => {
+      const row = {
+        "Student Name": response.studentName,
+        "Enrollment Number": response.enrollmentNumber,
+        Batch: response.batch,
+        Attendance: response.attendanceStatus || "",
+        "Low Rating Reason": response.lowRatingReason || "",
+        "Submitted At": response.submittedAt
+          ? response.submittedAt.toISOString()
+          : "",
+      };
+
+      // Add each form question as a CSV column
+      form.questions.forEach((question) => {
+        const submittedAnswer = response.answers.find(
+          (answer) => answer.questionId.toString() === question._id.toString(),
+        );
+
+        let value = submittedAnswer?.answer ?? "";
+
+        if (Array.isArray(value)) {
+          value = value.join(", ");
+        }
+
+        row[question.questionText] = value;
+      });
+
+      return row;
+    });
+
+    const parser = new Parser();
+    const csv = parser.parse(rows);
+
+    const safeTitle = form.title.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+
+    res.header("Content-Type", "text/csv; charset=utf-8");
+
+    res.attachment(`${safeTitle || "feedback"}_responses.csv`);
+
+    return res.send(csv);
+  } catch (error) {
+    console.error("EXPORT RESPONSES ERROR:", error);
+
+    return res.status(500).json({
       message: "Server error",
     });
   }

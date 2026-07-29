@@ -41,6 +41,12 @@
             android:layout_weight="1"
             android:text="Lower" />
 
+        <Button
+            android:id="@+id/exportButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Export and Share CSV" />
+
     </LinearLayout>
 
     <ProgressBar

@@ -307,17 +307,20 @@ class StudentFeedbackActivity : AppCompatActivity() {
                         android.R.attr.ratingBarStyleSmall
                     )
 
-                    ratingBar.numStars =
-                        question.maxStars
-
+                    ratingBar.numStars = question.maxStars
                     ratingBar.stepSize = 1f
-
                     ratingBar.rating = 0f
+                    ratingBar.setIsIndicator(false)
+
+                    ratingBar.layoutParams =
+                        LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        )
 
                     formContainer.addView(ratingBar)
 
-                    answerViews[question._id] =
-                        ratingBar
+                    answerViews[question._id] = ratingBar
                 }
 
                 // YES / NO

@@ -347,10 +347,17 @@ class ReFeedbackActivity : AppCompatActivity() {
 
                     numStars = question.maxStars
                     stepSize = 1f
+                    setIsIndicator(false)
 
                     rating =
                         (oldAnswer as? Number)
                             ?.toFloat() ?: 0f
+
+                    layoutParams =
+                        LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        )
                 }
             }
 

@@ -19,6 +19,10 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import androidx.core.content.FileProvider
+import okhttp3.ResponseBody
+import java.io.File
+import java.io.FileOutputStream
 
 class ResponsesActivity : AppCompatActivity() {
 
@@ -70,6 +74,107 @@ class ResponsesActivity : AppCompatActivity() {
 
         // Default view
         loadSummary()
+
+        val exportButton =
+            findViewById<Button>(R.id.exportButton)
+
+        exportButton.setOnClickListener {
+            exportResponses()
+        }
+    }
+
+    private fun exportResponses() {
+
+        statusText.text = "Preparing export..."
+        progressBar.visibility = View.VISIBLE
+
+        ApiClient.apiService
+            .exportResponses(
+                "Bearer $token",
+                formId
+            )
+            .enqueue(object : Callback<ResponseBody> {
+
+                override fun onResponse(
+                    call: Call<ResponseBody>,
+                    response: Response<ResponseBody>
+                ) {
+                    progressBar.visibility = View.GONE
+
+                    if (!response.isSuccessful || response.body() == null) {
+                        statusText.text =
+                            "Export failed (${response.code()})"
+                        return
+                    }
+
+                    try {
+                        val exportDir =
+                            File(cacheDir, "exports")
+
+                        if (!exportDir.exists()) {
+                            exportDir.mkdirs()
+                        }
+
+                        val file =
+                            File(
+                                exportDir,
+                                "feedback_responses.csv"
+                            )
+
+                        FileOutputStream(file).use { output ->
+                            response.body()!!.byteStream().use { input ->
+                                input.copyTo(output)
+                            }
+                        }
+
+                        val uri =
+                            FileProvider.getUriForFile(
+                                this@ResponsesActivity,
+                                "${packageName}.fileprovider",
+                                file
+                            )
+
+                        val shareIntent =
+                            Intent(Intent.ACTION_SEND).apply {
+
+                                type = "text/csv"
+
+                                putExtra(
+                                    Intent.EXTRA_STREAM,
+                                    uri
+                                )
+
+                                addFlags(
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            }
+
+                        startActivity(
+                            Intent.createChooser(
+                                shareIntent,
+                                "Share Responses CSV"
+                            )
+                        )
+
+                        statusText.text =
+                            "Export created successfully"
+
+                    } catch (e: Exception) {
+                        statusText.text =
+                            "Could not create export: ${e.message}"
+                    }
+                }
+
+                override fun onFailure(
+                    call: Call<ResponseBody>,
+                    t: Throwable
+                ) {
+                    progressBar.visibility = View.GONE
+
+                    statusText.text =
+                        "Export error: ${t.message}"
+                }
+            })
     }
 
     private fun addBarChart(
@@ -463,6 +568,8 @@ class ResponsesActivity : AppCompatActivity() {
 
                         container.addView(qrButton)
                     }
+
+
                 }
 
                 override fun onFailure(
