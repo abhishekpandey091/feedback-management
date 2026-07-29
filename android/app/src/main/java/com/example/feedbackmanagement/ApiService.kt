@@ -8,6 +8,7 @@ import retrofit2.http.Header
 import retrofit2.http.DELETE
 import retrofit2.http.Path
 import retrofit2.http.PATCH
+import retrofit2.http.PUT
 
 
 interface ApiService {
@@ -103,4 +104,18 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("formId") formId: String
     ): Call<LowerFeedbackResponse>
+
+    @GET("api/responses/{responseId}/refeedback")
+    fun getReFeedback(
+        @Header("Authorization") token: String,
+        @Path("responseId") responseId: String
+    ): Call<ReFeedbackResponse>
+
+
+    @PUT("api/responses/{responseId}/refeedback")
+    fun submitReFeedback(
+        @Header("Authorization") token: String,
+        @Path("responseId") responseId: String,
+        @Body request: ReFeedbackRequest
+    ): Call<ReFeedbackSubmitResponse>
 }

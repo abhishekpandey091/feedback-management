@@ -304,7 +304,7 @@ class StudentFeedbackActivity : AppCompatActivity() {
                     val ratingBar = RatingBar(
                         this,
                         null,
-                        android.R.attr.ratingBarStyle
+                        android.R.attr.ratingBarStyleSmall
                     )
 
                     ratingBar.numStars =

@@ -16,7 +16,7 @@
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
         <activity
-            android:name=".StudentFeedbackActivity"
+            android:name=".ReFeedbackActivity"
             android:exported="true">
 
             <intent-filter>
@@ -27,9 +27,23 @@
 
                 <data
                     android:scheme="feedbackapp"
-                    android:host="form" />
+                    android:host="refeedback" />
             </intent-filter>
 
+        </activity>
+        <activity
+            android:name=".StudentFeedbackActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="form"
+                    android:scheme="feedbackapp" />
+            </intent-filter>
         </activity>
         <activity
             android:name=".AdminFormsActivity"
@@ -61,6 +75,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
     </application>
 
 </manifest>

@@ -216,6 +216,223 @@ router.get("/form/:formId/lower-feedback", protect, async (req, res) => {
 });
 
 // ======================================================
+// GET RESPONSE FOR RE-FEEDBACK
+// ======================================================
+
+router.get("/:responseId/refeedback", protect, async (req, res) => {
+  try {
+    const response = await Response.findById(req.params.responseId);
+
+    if (!response) {
+      return res.status(404).json({
+        message: "Response not found",
+      });
+    }
+
+    const form = await Form.findById(response.formId);
+
+    if (!form) {
+      return res.status(404).json({
+        message: "Form not found",
+      });
+    }
+
+    if (!(await canAccessForm(req.user, form))) {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    res.status(200).json({
+      message: "Re-feedback data fetched successfully",
+
+      form: {
+        _id: form._id,
+        title: form.title,
+        description: form.description,
+        questions: form.questions,
+      },
+
+      response: {
+        _id: response._id,
+        studentName: response.studentName,
+        enrollmentNumber: response.enrollmentNumber,
+        batch: response.batch,
+        attendanceStatus: response.attendanceStatus,
+        lowRatingReason: response.lowRatingReason,
+        answers: response.answers,
+      },
+    });
+  } catch (error) {
+    console.error("GET RE-FEEDBACK ERROR:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+});
+
+// ======================================================
+// SUBMIT RE-FEEDBACK
+// ======================================================
+
+router.put("/:responseId/refeedback", protect, async (req, res) => {
+  try {
+    const { answers, lowRatingReason } = req.body;
+
+    if (!Array.isArray(answers)) {
+      return res.status(400).json({
+        message: "Answers are required",
+      });
+    }
+
+    const response = await Response.findById(req.params.responseId);
+
+    if (!response) {
+      return res.status(404).json({
+        message: "Response not found",
+      });
+    }
+
+    const form = await Form.findById(response.formId);
+
+    if (!form) {
+      return res.status(404).json({
+        message: "Form not found",
+      });
+    }
+
+    if (!(await canAccessForm(req.user, form))) {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    // ---------------------------------------------
+    // Validate every submitted answer
+    // ---------------------------------------------
+
+    let hasLowRating = false;
+
+    for (const question of form.questions) {
+      const oldAnswer = response.answers.find(
+        (answer) => answer.questionId.toString() === question._id.toString(),
+      );
+
+      const newAnswer = answers.find(
+        (answer) => answer.questionId?.toString() === question._id.toString(),
+      );
+
+      if (!newAnswer) {
+        if (question.required) {
+          return res.status(400).json({
+            message: `Answer required: ${question.questionText}`,
+          });
+        }
+
+        continue;
+      }
+
+      // ---------------------------------------------
+      // YES -> NO IS NOT ALLOWED
+      // ---------------------------------------------
+
+      if (
+        question.type === "yes_no" &&
+        oldAnswer?.answer === "Yes" &&
+        newAnswer.answer === "No"
+      ) {
+        return res.status(400).json({
+          message: `Yes cannot be changed to No: ${question.questionText}`,
+        });
+      }
+
+      // Yes/No validation
+      if (
+        question.type === "yes_no" &&
+        !["Yes", "No"].includes(newAnswer.answer)
+      ) {
+        return res.status(400).json({
+          message: `Invalid Yes/No answer: ${question.questionText}`,
+        });
+      }
+
+      // MCQ / Dropdown
+      if (
+        ["mcq", "dropdown"].includes(question.type) &&
+        !question.options.includes(newAnswer.answer)
+      ) {
+        return res.status(400).json({
+          message: `Invalid answer for: ${question.questionText}`,
+        });
+      }
+
+      // Checkbox
+      if (question.type === "checkbox") {
+        if (!Array.isArray(newAnswer.answer)) {
+          return res.status(400).json({
+            message: `Invalid checkbox answer: ${question.questionText}`,
+          });
+        }
+
+        const invalidOption = newAnswer.answer.some(
+          (option) => !question.options.includes(option),
+        );
+
+        if (invalidOption) {
+          return res.status(400).json({
+            message: `Invalid option for: ${question.questionText}`,
+          });
+        }
+      }
+
+      // Star rating
+      if (question.type === "star_rating") {
+        const rating = Number(newAnswer.answer);
+
+        if (
+          !Number.isInteger(rating) ||
+          rating < 1 ||
+          rating > question.maxStars
+        ) {
+          return res.status(400).json({
+            message: `Invalid rating for: ${question.questionText}`,
+          });
+        }
+
+        if (rating < 8) {
+          hasLowRating = true;
+        }
+      }
+    }
+
+    // Rating below 8 still requires reason
+    if (hasLowRating && (!lowRatingReason || !lowRatingReason.trim())) {
+      return res.status(400).json({
+        message: "Reason is required for a rating below 8",
+      });
+    }
+
+    response.answers = answers;
+
+    response.lowRatingReason = lowRatingReason?.trim() || null;
+
+    await response.save();
+
+    res.status(200).json({
+      message: "Re-feedback submitted successfully",
+      response,
+    });
+  } catch (error) {
+    console.error("SUBMIT RE-FEEDBACK ERROR:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+});
+
+// ======================================================
 // INDIVIDUAL RESPONSE
 // Keep this LAST so it doesn't swallow /form/... routes
 // ======================================================

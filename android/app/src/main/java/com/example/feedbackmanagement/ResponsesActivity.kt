@@ -12,6 +12,13 @@ import com.github.mikephil.charting.data.BarData
 import com.github.mikephil.charting.data.BarDataSet
 import com.github.mikephil.charting.data.BarEntry
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import android.content.Intent
+import android.graphics.Bitmap
+import android.widget.ImageView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 
 class ResponsesActivity : AppCompatActivity() {
 
@@ -331,7 +338,130 @@ class ResponsesActivity : AppCompatActivity() {
                             )
                         }
 
+                        val reFeedbackButton = Button(this@ResponsesActivity)
+                        reFeedbackButton.text = "Re-feedback"
+
+                        reFeedbackButton.setOnClickListener {
+
+                            val intent =
+                                Intent(
+                                    this@ResponsesActivity,
+                                    ReFeedbackActivity::class.java
+                                )
+
+                            intent.putExtra(
+                                "responseId",
+                                item._id
+                            )
+
+                            startActivity(intent)
+                        }
+
+                        container.addView(reFeedbackButton)
+
                         addText("====================")
+
+                        val shareReFeedbackButton =
+                            Button(this@ResponsesActivity)
+
+                        shareReFeedbackButton.text = "Share Re-feedback"
+
+                        shareReFeedbackButton.setOnClickListener {
+
+                            val link =
+                                "feedbackapp://refeedback/${item._id}"
+
+                            val shareIntent = Intent().apply {
+                                action = Intent.ACTION_SEND
+                                type = "text/plain"
+
+                                putExtra(
+                                    Intent.EXTRA_TEXT,
+                                    "Please submit your re-feedback:\n$link"
+                                )
+                            }
+
+                            startActivity(
+                                Intent.createChooser(
+                                    shareIntent,
+                                    "Share Re-feedback"
+                                )
+                            )
+                        }
+
+                        container.addView(shareReFeedbackButton)
+
+                        val qrButton =
+                            Button(this@ResponsesActivity)
+
+                        qrButton.text = "Re-feedback QR"
+
+                        qrButton.setOnClickListener {
+
+                            val link =
+                                "feedbackapp://refeedback/${item._id}"
+
+                            try {
+
+                                val writer = QRCodeWriter()
+
+                                val bitMatrix = writer.encode(
+                                    link,
+                                    BarcodeFormat.QR_CODE,
+                                    700,
+                                    700
+                                )
+
+                                val bitmap = Bitmap.createBitmap(
+                                    700,
+                                    700,
+                                    Bitmap.Config.RGB_565
+                                )
+
+                                for (x in 0 until 700) {
+                                    for (y in 0 until 700) {
+
+                                        bitmap.setPixel(
+                                            x,
+                                            y,
+                                            if (bitMatrix[x, y])
+                                                android.graphics.Color.BLACK
+                                            else
+                                                android.graphics.Color.WHITE
+                                        )
+                                    }
+                                }
+
+                                val imageView =
+                                    ImageView(this@ResponsesActivity)
+
+                                imageView.setImageBitmap(bitmap)
+
+                                AlertDialog.Builder(
+                                    this@ResponsesActivity
+                                )
+                                    .setTitle("Re-feedback")
+                                    .setMessage(
+                                        "Scan to submit re-feedback"
+                                    )
+                                    .setView(imageView)
+                                    .setPositiveButton(
+                                        "Close",
+                                        null
+                                    )
+                                    .show()
+
+                            } catch (e: Exception) {
+
+                                Toast.makeText(
+                                    this@ResponsesActivity,
+                                    "Could not generate QR: ${e.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+
+                        container.addView(qrButton)
                     }
                 }
 
