@@ -278,48 +278,6 @@ router.get("/:formId", protect, async (req, res) => {
   }
 });
 
-// Get a single form by ID
-router.get("/:formId", protect, async (req, res) => {
-  try {
-    const form = await Form.findById(req.params.formId)
-      .populate("createdBy", "fullName email")
-      .populate("assignedTo", "fullName email");
-
-    if (!form) {
-      return res.status(404).json({
-        message: "Form not found",
-      });
-    }
-
-    // Teacher can only view forms created by or assigned to them
-    if (req.user.role === "teacher") {
-      const userId = req.user.userId;
-
-      const isCreator = form.createdBy._id.toString() === userId;
-
-      const isAssigned =
-        form.assignedTo && form.assignedTo._id.toString() === userId;
-
-      if (!isCreator && !isAssigned) {
-        return res.status(403).json({
-          message: "Access denied",
-        });
-      }
-    }
-
-    res.status(200).json({
-      message: "Form fetched successfully",
-      form,
-    });
-  } catch (error) {
-    console.error("GET FORM ERROR:", error);
-
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
-});
-
 // Admin rejects a pending form
 router.patch("/:formId/reject", protect, async (req, res) => {
   try {
@@ -360,6 +318,126 @@ router.patch("/:formId/reject", protect, async (req, res) => {
     });
   } catch (error) {
     console.error("REJECT FORM ERROR:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+});
+
+router.patch("/:formId", protect, async (req, res) => {
+  try {
+    if (!["admin", "teacher"].includes(req.user.role)) {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    const form = await Form.findById(req.params.formId);
+
+    if (!form) {
+      return res.status(404).json({
+        message: "Form not found",
+      });
+    }
+
+    // Teacher permission check
+    if (req.user.role === "teacher") {
+      const userId = req.user.userId.toString();
+
+      const isCreator = form.createdBy?.toString() === userId;
+
+      const isAssigned = form.assignedTo?.toString() === userId;
+
+      if (!isCreator && !isAssigned) {
+        return res.status(403).json({
+          message: "You cannot edit this form",
+        });
+      }
+    }
+
+    const { title, description, assignedTo, questions, allowedBatches } =
+      req.body;
+
+    // Validate fields if supplied
+    if (title !== undefined && !title.trim()) {
+      return res.status(400).json({
+        message: "Form title cannot be empty",
+      });
+    }
+
+    if (
+      questions !== undefined &&
+      (!Array.isArray(questions) || questions.length === 0)
+    ) {
+      return res.status(400).json({
+        message: "At least one question is required",
+      });
+    }
+
+    // Admin can change assigned teacher
+    if (req.user.role === "admin" && assignedTo !== undefined) {
+      const teacher = await User.findOne({
+        _id: assignedTo,
+        role: "teacher",
+        isActive: true,
+      });
+
+      if (!teacher) {
+        return res.status(404).json({
+          message: "Active teacher not found",
+        });
+      }
+
+      form.assignedTo = assignedTo;
+    }
+
+    // Update supplied fields only
+    if (title !== undefined) {
+      form.title = title.trim();
+    }
+
+    if (description !== undefined) {
+      form.description = description.trim();
+    }
+
+    if (questions !== undefined) {
+      form.questions = questions;
+    }
+
+    if (allowedBatches !== undefined) {
+      form.allowedBatches = allowedBatches;
+    }
+
+    // Teacher edits require approval again
+    if (req.user.role === "teacher") {
+      form.approvalStatus = "pending";
+      form.isActive = false;
+      form.activatedAt = null;
+
+      form.approvedBy = null;
+      form.approvedAt = null;
+      form.rejectionReason = "";
+    }
+
+    await form.save();
+
+    res.status(200).json({
+      message:
+        req.user.role === "teacher"
+          ? "Form updated and sent for admin approval"
+          : "Form updated successfully",
+      form,
+    });
+  } catch (error) {
+    console.error("UPDATE FORM ERROR:", error);
+
+    // Invalid Mongo ObjectId
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message: "Invalid form ID",
+      });
+    }
 
     res.status(500).json({
       message: "Server error",
