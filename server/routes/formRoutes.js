@@ -221,31 +221,50 @@ router.patch("/:formId/activate", protect, async (req, res) => {
 // Get all forms available to logged-in user
 router.get("/", protect, async (req, res) => {
   try {
-    let forms;
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 50);
+
+    const skip = (page - 1) * limit;
+
+    const filter = {};
 
     if (req.user.role === "admin") {
-      // Admin can see every form
-      forms = await Form.find()
-        .populate("createdBy", "fullName email")
-        .populate("assignedTo", "fullName email")
-        .sort({ createdAt: -1 });
+      // Admin may filter forms by assigned teacher
+      if (req.query.teacherId) {
+        filter.assignedTo = req.query.teacherId;
+      }
     } else if (req.user.role === "teacher") {
-      // Teacher sees forms created by or assigned to them
-      forms = await Form.find({
-        $or: [{ createdBy: req.user.userId }, { assignedTo: req.user.userId }],
-      })
-        .populate("createdBy", "fullName email")
-        .populate("assignedTo", "fullName email")
-        .sort({ createdAt: -1 });
+      filter.$or = [
+        { createdBy: req.user.userId },
+        { assignedTo: req.user.userId },
+      ];
     } else {
       return res.status(403).json({
         message: "Access denied",
       });
     }
 
+    const [forms, total] = await Promise.all([
+      Form.find(filter)
+        .populate("createdBy", "fullName email")
+        .populate("assignedTo", "fullName email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      Form.countDocuments(filter),
+    ]);
+
     res.status(200).json({
       message: "Forms fetched successfully",
       forms,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      },
     });
   } catch (error) {
     console.error("GET FORMS ERROR:", error);
