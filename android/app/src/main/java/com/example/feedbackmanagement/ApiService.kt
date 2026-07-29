@@ -55,7 +55,10 @@ interface ApiService {
 
     @GET("api/forms")
     fun getAllForms(
-        @Header("Authorization") token: String
+        @Header("Authorization") token: String,
+        @retrofit2.http.Query("page") page: Int = 1,
+        @retrofit2.http.Query("limit") limit: Int = 10,
+        @retrofit2.http.Query("teacherId") teacherId: String? = null
     ): Call<FormsResponse>
 
     @PATCH("api/forms/{id}/approve")
@@ -126,4 +129,30 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Path("formId") formId: String
     ): Call<ResponseBody>
+
+    @PATCH("api/forms/{id}")
+    fun updateForm(
+        @Header("Authorization") token: String,
+        @Path("id") formId: String,
+        @Body request: CreateFormRequest
+    ): Call<CreateFormResponse>
+
+    @GET("api/forms/{id}")
+    fun getFormById(
+        @Header("Authorization") token: String,
+        @Path("id") formId: String
+    ): Call<CreateFormResponse>
+
+    @DELETE("api/forms/{id}")
+    fun deleteForm(
+        @Header("Authorization") token: String,
+        @Path("id") formId: String
+    ): Call<MessageResponse>
+
+    @PATCH("api/forms/{id}/deactivate")
+    fun deactivateForm(
+        @Header("Authorization") token: String,
+        @Path("id") formId: String
+    ): Call<CreateFormResponse>
+
 }

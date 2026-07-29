@@ -16,9 +16,43 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
         val sessionManager = SessionManager(this)
+
+// Already logged in → skip login screen
+        if (sessionManager.isLoggedIn()) {
+
+            when (sessionManager.getRole()) {
+
+                "admin" -> {
+                    startActivity(
+                        Intent(
+                            this,
+                            AdminDashboardActivity::class.java
+                        )
+                    )
+                    finish()
+                    return
+                }
+
+                "teacher" -> {
+                    startActivity(
+                        Intent(
+                            this,
+                            TeacherDashboardActivity::class.java
+                        )
+                    )
+                    finish()
+                    return
+                }
+
+                else -> {
+                    // Invalid/incomplete saved session
+                    sessionManager.clearSession()
+                }
+            }
+        }
+
+        setContentView(R.layout.activity_main)
 
         val emailInput = findViewById<EditText>(R.id.emailEditText)
         val passwordInput = findViewById<EditText>(R.id.passwordEditText)

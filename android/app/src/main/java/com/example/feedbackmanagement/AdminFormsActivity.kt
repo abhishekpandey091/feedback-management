@@ -12,7 +12,19 @@ import android.graphics.Bitmap
 import android.widget.ImageView
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import android.widget.*
 class AdminFormsActivity : AppCompatActivity() {
+
+    private lateinit var loadMoreButton: Button
+
+    private var currentPage = 1
+    private var hasMore = false
+    private val pageSize = 10
+
+    private lateinit var teacherFilterSpinner: Spinner
+
+    private var selectedTeacherId: String? = null
+    private var teachers: List<TeacherData> = emptyList()
 
     private lateinit var formsContainer: LinearLayout
     private lateinit var progressBar: ProgressBar
@@ -29,10 +41,98 @@ class AdminFormsActivity : AppCompatActivity() {
 
         sessionManager = SessionManager(this)
 
+        loadMoreButton = findViewById(R.id.loadMoreButton)
+
+        loadMoreButton.setOnClickListener {
+            if (hasMore) {
+                currentPage++
+                loadForms(append = true)
+            }
+        }
+
+        teacherFilterSpinner =
+            findViewById(R.id.teacherFilterSpinner)
+
+        loadTeacherFilter()
+
+
         loadForms()
+
     }
 
-    private fun loadForms() {
+    private fun loadTeacherFilter() {
+
+        val token = sessionManager.getToken() ?: return
+
+        ApiClient.apiService
+            .getTeachers("Bearer $token")
+            .enqueue(object : Callback<TeachersResponse> {
+
+                override fun onResponse(
+                    call: Call<TeachersResponse>,
+                    response: Response<TeachersResponse>
+                ) {
+                    if (!response.isSuccessful || response.body() == null) {
+                        return
+                    }
+
+                    teachers = response.body()!!.teachers
+
+                    val names = mutableListOf("All Teachers")
+
+                    names.addAll(
+                        teachers.map { it.fullName }
+                    )
+
+                    val adapter = ArrayAdapter(
+                        this@AdminFormsActivity,
+                        android.R.layout.simple_spinner_item,
+                        names
+                    )
+
+                    adapter.setDropDownViewResource(
+                        android.R.layout.simple_spinner_dropdown_item
+                    )
+
+                    teacherFilterSpinner.adapter = adapter
+
+                    teacherFilterSpinner.onItemSelectedListener =
+                        object : AdapterView.OnItemSelectedListener {
+
+                            override fun onItemSelected(
+                                parent: AdapterView<*>?,
+                                view: View?,
+                                position: Int,
+                                id: Long
+                            ) {
+                                selectedTeacherId =
+                                    if (position == 0) {
+                                        null
+                                    } else {
+                                        teachers[position - 1]._id
+                                    }
+
+                                currentPage = 1
+                                loadForms()
+                            }
+
+                            override fun onNothingSelected(
+                                parent: AdapterView<*>?
+                            ) {
+                            }
+                        }
+                }
+
+                override fun onFailure(
+                    call: Call<TeachersResponse>,
+                    t: Throwable
+                ) {
+                    // Forms can still load without filter
+                }
+            })
+    }
+
+    private fun loadForms(append: Boolean = false) {
 
         val token = sessionManager.getToken()
 
@@ -41,10 +141,21 @@ class AdminFormsActivity : AppCompatActivity() {
             return
         }
 
+        if (!append) {
+            currentPage = 1
+            formsContainer.removeAllViews()
+        }
+
         progressBar.visibility = View.VISIBLE
+        loadMoreButton.isEnabled = false
 
         ApiClient.apiService
-            .getAllForms("Bearer $token")
+            .getAllForms(
+                token = "Bearer $token",
+                page = currentPage,
+                limit = pageSize,
+                teacherId = selectedTeacherId
+            )
             .enqueue(object : Callback<FormsResponse> {
 
                 override fun onResponse(
@@ -52,6 +163,7 @@ class AdminFormsActivity : AppCompatActivity() {
                     response: Response<FormsResponse>
                 ) {
                     progressBar.visibility = View.GONE
+                    loadMoreButton.isEnabled = true
 
                     if (!response.isSuccessful || response.body() == null) {
                         statusText.text =
@@ -59,20 +171,28 @@ class AdminFormsActivity : AppCompatActivity() {
                         return
                     }
 
-                    val forms = response.body()!!.forms
+                    val body = response.body()!!
+                    val forms = body.forms
 
-                    formsContainer.removeAllViews()
+                    if (!append) {
+                        formsContainer.removeAllViews()
+                    }
 
-                    if (forms.isEmpty()) {
+                    if (forms.isEmpty() && currentPage == 1) {
                         statusText.text = "No forms found"
-                        return
+                    } else {
+                        statusText.text = ""
+
+                        forms.forEach { form ->
+                            addFormView(form, token)
+                        }
                     }
 
-                    statusText.text = ""
+                    hasMore = body.pagination?.hasMore ?: false
 
-                    forms.forEach { form ->
-                        addFormView(form, token)
-                    }
+                    loadMoreButton.visibility =
+                        if (hasMore) View.VISIBLE
+                        else View.GONE
                 }
 
                 override fun onFailure(
@@ -80,11 +200,15 @@ class AdminFormsActivity : AppCompatActivity() {
                     t: Throwable
                 ) {
                     progressBar.visibility = View.GONE
+                    loadMoreButton.isEnabled = true
+
                     statusText.text =
                         "Connection error: ${t.message}"
                 }
             })
     }
+
+
 
     private fun addFormView(form: FormData, token: String) {
 
@@ -101,6 +225,144 @@ class AdminFormsActivity : AppCompatActivity() {
         title.setPadding(16, 24, 16, 12)
 
         formsContainer.addView(title)
+
+        val editButton = Button(this)
+        editButton.text = "Edit Form"
+
+        editButton.setOnClickListener {
+
+            val intent = android.content.Intent(
+                this,
+                CreateFormActivity::class.java
+            )
+
+            intent.putExtra("FORM_ID", form._id)
+
+            startActivity(intent)
+        }
+
+        val deleteButton = Button(this)
+        deleteButton.text = "Delete Form"
+
+        deleteButton.setOnClickListener {
+
+            AlertDialog.Builder(this)
+                .setTitle("Delete Form")
+                .setMessage(
+                    "Delete \"${form.title}\"? All responses will also be permanently deleted."
+                )
+                .setPositiveButton("Delete") { _, _ ->
+
+                    ApiClient.apiService
+                        .deleteForm(
+                            "Bearer $token",
+                            form._id
+                        )
+                        .enqueue(object : Callback<MessageResponse> {
+
+                            override fun onResponse(
+                                call: Call<MessageResponse>,
+                                response: Response<MessageResponse>
+                            ) {
+                                if (response.isSuccessful) {
+                                    Toast.makeText(
+                                        this@AdminFormsActivity,
+                                        "Form deleted successfully",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+
+                                    loadForms()
+                                } else {
+                                    Toast.makeText(
+                                        this@AdminFormsActivity,
+                                        "Delete failed (${response.code()})",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+
+                            override fun onFailure(
+                                call: Call<MessageResponse>,
+                                t: Throwable
+                            ) {
+                                Toast.makeText(
+                                    this@AdminFormsActivity,
+                                    "Connection error: ${t.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        })
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+
+            val deleteButton = Button(this)
+            deleteButton.text = "Delete Form"
+
+            deleteButton.setOnClickListener {
+
+                AlertDialog.Builder(this)
+                    .setTitle("Delete Form")
+                    .setMessage(
+                        "Delete \"${form.title}\"? All responses for this form will also be deleted."
+                    )
+                    .setPositiveButton("Delete") { _, _ ->
+
+                        ApiClient.apiService
+                            .deleteForm(
+                                "Bearer $token",
+                                form._id
+                            )
+                            .enqueue(object : Callback<MessageResponse> {
+
+                                override fun onResponse(
+                                    call: Call<MessageResponse>,
+                                    response: Response<MessageResponse>
+                                ) {
+                                    if (response.isSuccessful) {
+
+                                        Toast.makeText(
+                                            this@AdminFormsActivity,
+                                            "Form deleted successfully",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+
+                                        loadForms()
+
+                                    } else {
+
+                                        Toast.makeText(
+                                            this@AdminFormsActivity,
+                                            "Delete failed (${response.code()})",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+
+                                override fun onFailure(
+                                    call: Call<MessageResponse>,
+                                    t: Throwable
+                                ) {
+                                    Toast.makeText(
+                                        this@AdminFormsActivity,
+                                        "Connection error: ${t.message}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            })
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+
+            formsContainer.addView(deleteButton)
+        }
+
+
+
+        formsContainer.addView(deleteButton)
+
+        formsContainer.addView(editButton)
 
         // Pending forms → Approve / Reject
         if (form.approvalStatus == "pending") {
@@ -124,19 +386,28 @@ class AdminFormsActivity : AppCompatActivity() {
             formsContainer.addView(rejectButton)
         }
 
-        // Approved + inactive → Activate
-        if (
-            form.approvalStatus == "approved" &&
-            !form.isActive
-        ) {
-            val activateButton = Button(this)
-            activateButton.text = "Activate"
+        if (form.approvalStatus == "approved") {
 
-            activateButton.setOnClickListener {
-                activateForm(form._id, token)
+            val activeButton = Button(this)
+
+            if (form.isActive) {
+
+                activeButton.text = "Deactivate"
+
+                activeButton.setOnClickListener {
+                    deactivateForm(form._id, token)
+                }
+
+            } else {
+
+                activeButton.text = "Activate"
+
+                activeButton.setOnClickListener {
+                    activateForm(form._id, token)
+                }
             }
 
-            formsContainer.addView(activateButton)
+            formsContainer.addView(activeButton)
         }
 
         // Active form → Share
@@ -259,6 +530,21 @@ class AdminFormsActivity : AppCompatActivity() {
         ApiClient.apiService
             .activateForm("Bearer $token", formId)
             .enqueue(simpleCallback("Form activated"))
+    }
+
+    private fun deactivateForm(
+        formId: String,
+        token: String
+    ) {
+
+        ApiClient.apiService
+            .deactivateForm(
+                "Bearer $token",
+                formId
+            )
+            .enqueue(
+                simpleCallback("Form deactivated")
+            )
     }
 
     private fun showRejectDialog(
