@@ -2,9 +2,14 @@ package com.example.feedbackmanagement
 
 import android.os.Bundle
 import android.text.InputType
+import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -18,16 +23,21 @@ class StudentFeedbackActivity : AppCompatActivity() {
 
     // Stores the input View for each question
     private val answerViews = mutableMapOf<String, View>()
+    private var lowRatingReasonLayout: TextInputLayout? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_student_feedback)
+
+        findViewById<MaterialToolbar>(R.id.toolbar)
+            .setNavigationOnClickListener { finish() }
 
         formContainer = findViewById(R.id.formContainer)
         progressBar = findViewById(R.id.progressBar)
         statusText = findViewById(R.id.statusText)
         formIdInput = findViewById(R.id.formIdInput)
 
+        val formIdCard = findViewById<MaterialCardView>(R.id.formIdCard)
         val loadButton =
             findViewById<Button>(R.id.loadFormButton)
 
@@ -43,8 +53,7 @@ class StudentFeedbackActivity : AppCompatActivity() {
             if (!formId.isNullOrEmpty()) {
 
                 // Hide manual testing controls
-                formIdInput.visibility = View.GONE
-                loadButton.visibility = View.GONE
+                formIdCard.visibility = View.GONE
 
                 loadForm(formId)
             }
@@ -105,6 +114,27 @@ class StudentFeedbackActivity : AppCompatActivity() {
             })
     }
 
+    private fun textField(hint: String, multiline: Boolean = false): Pair<TextInputLayout, TextInputEditText> {
+        val layout = TextInputLayout(this)
+        layout.hint = hint
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        params.topMargin = UiKit.dp(this, 12)
+        layout.layoutParams = params
+
+        val edit = TextInputEditText(this)
+        if (multiline) {
+            edit.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            edit.minLines = 3
+            edit.maxLines = 6
+        }
+        layout.addView(edit)
+
+        return Pair(layout, edit)
+    }
+
     private fun showForm(
         form: PublicForm,
         formId: String
@@ -112,269 +142,212 @@ class StudentFeedbackActivity : AppCompatActivity() {
 
         formContainer.removeAllViews()
         answerViews.clear()
+        lowRatingReasonLayout = null
 
-        // FORM TITLE
-        val title = TextView(this)
-        title.text = form.title
-        title.textSize = 24f
+        // FORM HEADER
+        val (headerCard, headerInner) = UiKit.card(this)
+        headerInner.addView(UiKit.screenTitle(this, form.title))
+        if (!form.description.isNullOrBlank()) {
+            val desc = UiKit.bodyText(this, form.description)
+            headerInner.addView(desc)
+        }
+        formContainer.addView(headerCard)
 
-        formContainer.addView(title)
+        // STUDENT INFORMATION CARD
+        val (studentCard, studentInner) = UiKit.card(this)
+        studentInner.addView(UiKit.cardTitle(this, "Student Information"))
 
-        // DESCRIPTION
-        val description = TextView(this)
+        val (nameLayout, nameInput) = textField("Student Name")
+        studentInner.addView(nameLayout)
 
-        description.text = form.description ?: ""
-        description.textSize = 16f
-        description.setPadding(0, 8, 0, 24)
+        val (enrollmentLayout, enrollmentInput) = textField("Enrollment Number")
+        studentInner.addView(enrollmentLayout)
 
-        formContainer.addView(description)
+        val (batchLayout, batchInput) = textField("Batch")
+        studentInner.addView(batchLayout)
 
-        // STUDENT DETAILS
+        formContainer.addView(studentCard)
 
-        val nameInput = EditText(this)
-        nameInput.hint = "Student Name"
-
-        formContainer.addView(nameInput)
-
-        val enrollmentInput = EditText(this)
-        enrollmentInput.hint = "Enrollment Number"
-
-        formContainer.addView(enrollmentInput)
-
-        val batchInput = EditText(this)
-        batchInput.hint = "Batch"
-
-        formContainer.addView(batchInput)
-
-        // ATTENDANCE STATUS
-
-        val attendanceTitle = TextView(this)
-        attendanceTitle.text = "Attendance Status *"
-        attendanceTitle.textSize = 18f
-        attendanceTitle.setPadding(0, 28, 0, 8)
-
-        formContainer.addView(attendanceTitle)
+        // ATTENDANCE
+        val (attendanceCard, attendanceInner) = UiKit.card(this)
+        attendanceInner.addView(UiKit.cardTitle(this, "Attendance Status *"))
 
         val attendanceGroup = RadioGroup(this)
+        attendanceGroup.orientation = RadioGroup.HORIZONTAL
+        val attendanceParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        attendanceParams.topMargin = UiKit.dp(this, 10)
+        attendanceGroup.layoutParams = attendanceParams
 
         val presentButton = RadioButton(this)
         presentButton.text = "Present"
+        presentButton.layoutParams = LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+        )
 
         val absentButton = RadioButton(this)
         absentButton.text = "Absent"
+        absentButton.layoutParams = LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+        )
 
         attendanceGroup.addView(presentButton)
         attendanceGroup.addView(absentButton)
 
-        formContainer.addView(attendanceGroup)
+        attendanceInner.addView(attendanceGroup)
+        formContainer.addView(attendanceCard)
 
         // QUESTIONS
-
         form.questions.forEach { question ->
 
-            val questionText = TextView(this)
+            val (qCard, qInner) = UiKit.card(this)
 
-            questionText.text =
-                question.questionText +
-                        if (question.required) " *" else ""
-
-            questionText.textSize = 18f
-            questionText.setPadding(
-                0,
-                28,
-                0,
-                8
+            qInner.addView(
+                UiKit.questionLabel(this, question.questionText, question.required)
             )
-
-            formContainer.addView(questionText)
 
             when (question.type) {
 
                 // SHORT ANSWER
                 "short" -> {
-
-                    val input = EditText(this)
-
-                    input.hint = "Your answer"
-
-                    formContainer.addView(input)
-
+                    val (layout, input) = textField("Your answer")
+                    qInner.addView(layout)
                     answerViews[question._id] = input
                 }
 
                 // PARAGRAPH
                 "paragraph" -> {
-
-                    val input = EditText(this)
-
-                    input.hint = "Your answer"
-
-                    input.inputType =
-                        InputType.TYPE_CLASS_TEXT or
-                                InputType.TYPE_TEXT_FLAG_MULTI_LINE
-
-                    input.minLines = 3
-                    input.maxLines = 6
-
-                    formContainer.addView(input)
-
+                    val (layout, input) = textField("Your answer", multiline = true)
+                    qInner.addView(layout)
                     answerViews[question._id] = input
                 }
 
                 // MCQ
                 "mcq" -> {
-
                     val radioGroup = RadioGroup(this)
+                    radioGroup.orientation = RadioGroup.VERTICAL
 
                     question.options.forEach { option ->
-
-                        val radioButton =
-                            RadioButton(this)
-
+                        val radioButton = RadioButton(this)
                         radioButton.text = option
-
                         radioGroup.addView(radioButton)
                     }
 
-                    formContainer.addView(radioGroup)
-
-                    answerViews[question._id] =
-                        radioGroup
+                    qInner.addView(radioGroup)
+                    answerViews[question._id] = radioGroup
                 }
 
                 // CHECKBOX
                 "checkbox" -> {
-
-                    val checkboxContainer =
-                        LinearLayout(this)
-
-                    checkboxContainer.orientation =
-                        LinearLayout.VERTICAL
+                    val checkboxContainer = LinearLayout(this)
+                    checkboxContainer.orientation = LinearLayout.VERTICAL
 
                     question.options.forEach { option ->
-
-                        val checkBox =
-                            CheckBox(this)
-
+                        val checkBox = CheckBox(this)
                         checkBox.text = option
-
                         checkboxContainer.addView(checkBox)
                     }
 
-                    formContainer.addView(
-                        checkboxContainer
-                    )
-
-                    answerViews[question._id] =
-                        checkboxContainer
+                    qInner.addView(checkboxContainer)
+                    answerViews[question._id] = checkboxContainer
                 }
 
                 // DROPDOWN
                 "dropdown" -> {
-
                     val spinner = Spinner(this)
+                    spinner.setPadding(0, UiKit.dp(this, 8), 0, UiKit.dp(this, 8))
 
-                    val options =
-                        mutableListOf("Select option")
-
+                    val options = mutableListOf("Select option")
                     options.addAll(question.options)
 
-                    val adapter = ArrayAdapter(
+                    val spinnerAdapter = ArrayAdapter(
                         this,
                         android.R.layout.simple_spinner_item,
                         options
                     )
 
-                    adapter.setDropDownViewResource(
-                        android.R.layout
-                            .simple_spinner_dropdown_item
+                    spinnerAdapter.setDropDownViewResource(
+                        android.R.layout.simple_spinner_dropdown_item
                     )
 
-                    spinner.adapter = adapter
+                    spinner.adapter = spinnerAdapter
 
-                    formContainer.addView(spinner)
-
-                    answerViews[question._id] =
-                        spinner
+                    qInner.addView(spinner)
+                    answerViews[question._id] = spinner
                 }
 
                 // STAR RATING
                 "star_rating" -> {
-
-                    val ratingBar = RatingBar(
-                        this,
-                        null,
-                        android.R.attr.ratingBarStyleSmall
+                    val starView = StarRatingView(this)
+                    starView.maxStars = question.maxStars
+                    starView.rating = 0
+                    val starParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                     )
+                    starParams.topMargin = UiKit.dp(this, 6)
+                    starView.layoutParams = starParams
 
-                    ratingBar.numStars = question.maxStars
-                    ratingBar.stepSize = 1f
-                    ratingBar.rating = 0f
-                    ratingBar.setIsIndicator(false)
+                    starView.onRatingChanged = { refreshLowRatingVisibility(form) }
 
-                    ratingBar.layoutParams =
-                        LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                        )
-
-                    formContainer.addView(ratingBar)
-
-                    answerViews[question._id] = ratingBar
+                    qInner.addView(starView)
+                    answerViews[question._id] = starView
                 }
 
                 // YES / NO
                 "yes_no" -> {
+                    val radioGroup = RadioGroup(this)
+                    radioGroup.orientation = RadioGroup.HORIZONTAL
 
-                    val radioGroup =
-                        RadioGroup(this)
-
-                    val yes =
-                        RadioButton(this)
-
+                    val yes = RadioButton(this)
                     yes.text = "Yes"
+                    yes.layoutParams = LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                    )
 
-                    val no =
-                        RadioButton(this)
-
+                    val no = RadioButton(this)
                     no.text = "No"
+                    no.layoutParams = LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                    )
 
                     radioGroup.addView(yes)
                     radioGroup.addView(no)
 
-                    formContainer.addView(
-                        radioGroup
-                    )
-
-                    answerViews[question._id] =
-                        radioGroup
+                    qInner.addView(radioGroup)
+                    answerViews[question._id] = radioGroup
                 }
             }
+
+            formContainer.addView(qCard)
         }
 
-        // LOW RATING REASON
-
-        val lowRatingReasonInput = EditText(this)
-
-        lowRatingReasonInput.hint =
-            "Reason for rating below 8 (if applicable)"
-
-        lowRatingReasonInput.inputType =
-            InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_FLAG_MULTI_LINE
-
-        lowRatingReasonInput.minLines = 2
-        lowRatingReasonInput.maxLines = 4
-
-        formContainer.addView(lowRatingReasonInput)
-
-
+        // LOW RATING REASON (revealed only when needed)
+        val (reasonLayout, reasonInput) = textField(
+            "Reason for rating below 8",
+            multiline = true
+        )
+        reasonLayout.helperText = "Required when any star rating is below 8"
+        reasonLayout.visibility = View.GONE
+        val reasonParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        reasonParams.topMargin = UiKit.dp(this, 4)
+        reasonLayout.layoutParams = reasonParams
+        lowRatingReasonLayout = reasonLayout
+        formContainer.addView(reasonLayout)
 
         // SUBMIT BUTTON
-
-        val submitButton = Button(this)
-
-        submitButton.text = "Submit Feedback"
+        val submitButton = UiKit.primaryButton(this, "Submit Feedback")
+        val submitParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            UiKit.dp(this, 52)
+        )
+        submitParams.topMargin = UiKit.dp(this, 20)
+        submitButton.layoutParams = submitParams
 
         submitButton.setOnClickListener {
 
@@ -451,7 +424,7 @@ class StudentFeedbackActivity : AppCompatActivity() {
                                     ""
                                 } else {
 
-                                    findViewById<RadioButton>(
+                                    group.findViewById<RadioButton>(
                                         selectedId
                                     ).text.toString()
                                 }
@@ -502,10 +475,10 @@ class StudentFeedbackActivity : AppCompatActivity() {
 
                             "star_rating" -> {
 
-                                val ratingBar =
-                                    view as RatingBar
+                                val starView =
+                                    view as StarRatingView
 
-                                ratingBar.rating.toInt()
+                                starView.rating
                             }
 
                             else -> ""
@@ -545,7 +518,7 @@ class StudentFeedbackActivity : AppCompatActivity() {
             }
 
             val lowRatingReason =
-                lowRatingReasonInput.text
+                reasonInput.text
                     .toString()
                     .trim()
                     .ifEmpty { null }
@@ -558,10 +531,10 @@ class StudentFeedbackActivity : AppCompatActivity() {
                         if (question.type != "star_rating") {
                             false
                         } else {
-                            val ratingBar =
-                                answerViews[question._id] as? RatingBar
+                            val starView =
+                                answerViews[question._id] as? StarRatingView
 
-                            (ratingBar?.rating ?: 0f) in 1f..7f
+                            (starView?.rating ?: 0) in 1..7
                         }
                     }
 
@@ -590,8 +563,19 @@ class StudentFeedbackActivity : AppCompatActivity() {
         formContainer.addView(submitButton)
     }
 
+    private fun refreshLowRatingVisibility(form: PublicForm) {
+        val hasLowRating = form.questions.any { question ->
+            if (question.type != "star_rating") {
+                false
+            } else {
+                val starView = answerViews[question._id] as? StarRatingView
+                (starView?.rating ?: 0) in 1..7
+            }
+        }
 
-
+        lowRatingReasonLayout?.visibility =
+            if (hasLowRating) View.VISIBLE else View.GONE
+    }
 
     private fun submitFeedback(
         formId: String,
@@ -601,7 +585,7 @@ class StudentFeedbackActivity : AppCompatActivity() {
         attendanceStatus: String,
         lowRatingReason: String?,
         answers: List<StudentAnswer>
-    ){
+    ) {
 
         progressBar.visibility = View.VISIBLE
         statusText.text = ""
@@ -615,10 +599,6 @@ class StudentFeedbackActivity : AppCompatActivity() {
                 lowRatingReason = lowRatingReason,
                 answers = answers
             )
-
-
-
-
 
         ApiClient.apiService
             .submitFeedback(

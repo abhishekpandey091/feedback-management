@@ -13,12 +13,10 @@ import com.github.mikephil.charting.data.BarDataSet
 import com.github.mikephil.charting.data.BarEntry
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import android.content.Intent
-import android.graphics.Bitmap
-import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.qrcode.QRCodeWriter
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButtonToggleGroup
 import androidx.core.content.FileProvider
 import okhttp3.ResponseBody
 import java.io.File
@@ -37,6 +35,9 @@ class ResponsesActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_responses)
 
+        findViewById<MaterialToolbar>(R.id.toolbar)
+            .setNavigationOnClickListener { finish() }
+
         container = findViewById(R.id.responsesContainer)
         progressBar = findViewById(R.id.responsesProgressBar)
         statusText = findViewById(R.id.responsesStatusText)
@@ -49,6 +50,9 @@ class ResponsesActivity : AppCompatActivity() {
 
         val lowerButton =
             findViewById<Button>(R.id.lowerFeedbackButton)
+
+        val tabGroup =
+            findViewById<MaterialButtonToggleGroup>(R.id.tabGroup)
 
         formId = intent.getStringExtra("FORM_ID") ?: ""
 
@@ -73,10 +77,11 @@ class ResponsesActivity : AppCompatActivity() {
         }
 
         // Default view
+        tabGroup.check(R.id.summaryButton)
         loadSummary()
 
         val exportButton =
-            findViewById<Button>(R.id.exportButton)
+            findViewById<View>(R.id.exportButton)
 
         exportButton.setOnClickListener {
             exportResponses()
@@ -177,7 +182,7 @@ class ResponsesActivity : AppCompatActivity() {
             })
     }
 
-    private fun addBarChart(
+    private fun addChartCard(
         labels: List<String>,
         values: List<Float>,
         title: String
@@ -185,16 +190,27 @@ class ResponsesActivity : AppCompatActivity() {
 
         if (labels.isEmpty() || values.isEmpty()) return
 
+        val (card, inner) = UiKit.card(this)
+        inner.addView(UiKit.captionText(this, title.uppercase()))
+
         val chart = BarChart(this)
+        val chartParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            UiKit.dp(this, 200)
+        )
+        chartParams.topMargin = UiKit.dp(this, 8)
+        chart.layoutParams = chartParams
 
         val entries = values.mapIndexed { index, value ->
             BarEntry(index.toFloat(), value)
         }
 
         val dataSet = BarDataSet(entries, title)
+        dataSet.color = androidx.core.content.ContextCompat.getColor(this, R.color.brand_primary)
+        dataSet.valueTextColor = androidx.core.content.ContextCompat.getColor(this, R.color.text_secondary)
 
         val data = BarData(dataSet)
-        data.barWidth = 0.7f
+        data.barWidth = 0.6f
 
         chart.data = data
 
@@ -203,18 +219,54 @@ class ResponsesActivity : AppCompatActivity() {
 
         chart.xAxis.granularity = 1f
         chart.xAxis.setDrawGridLines(false)
+        chart.xAxis.textColor =
+            androidx.core.content.ContextCompat.getColor(this, R.color.text_secondary)
+
+        chart.axisLeft.textColor =
+            androidx.core.content.ContextCompat.getColor(this, R.color.text_secondary)
+        chart.axisLeft.setDrawGridLines(false)
 
         chart.axisRight.isEnabled = false
 
         chart.description.isEnabled = false
-        chart.legend.isEnabled = true
-
-        chart.minimumHeight = 500
+        chart.legend.isEnabled = false
 
         chart.setFitBars(true)
+        chart.setExtraOffsets(4f, 4f, 4f, 8f)
         chart.invalidate()
 
-        container.addView(chart)
+        inner.addView(chart)
+        container.addView(card)
+    }
+
+    private fun metricRow(items: List<Pair<String, String>>) {
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        val rowParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        rowParams.bottomMargin = UiKit.dp(this, 4)
+        row.layoutParams = rowParams
+
+        items.forEachIndexed { index, (value, label) ->
+            val (card, inner) = UiKit.card(this, marginBottomDp = 16)
+            val params = LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            )
+            if (index > 0) params.marginStart = UiKit.dp(this, 12)
+            card.layoutParams = params
+
+            val valueText = TextView(this)
+            valueText.text = value
+            valueText.setTextAppearance(R.style.TextAppearance_Feedback_ScreenTitle)
+            inner.addView(valueText)
+            inner.addView(UiKit.captionText(this, label))
+
+            row.addView(card)
+        }
+
+        container.addView(row)
     }
 
     private fun prepareLoading() {
@@ -223,12 +275,8 @@ class ResponsesActivity : AppCompatActivity() {
         progressBar.visibility = View.VISIBLE
     }
 
-    private fun addText(text: String, size: Float = 16f) {
-        val view = TextView(this)
-        view.text = text
-        view.textSize = size
-        view.setPadding(8, 12, 8, 12)
-        container.addView(view)
+    private fun sectionHeader(text: String) {
+        container.addView(UiKit.sectionTitle(this, text))
     }
 
     private fun loadSummary() {
@@ -256,38 +304,70 @@ class ResponsesActivity : AppCompatActivity() {
                         return
                     }
 
-                    addText(body.title, 22f)
-                    addText(
-                        "Total Responses: ${body.totalResponses}",
-                        18f
+                    metricRow(
+                        listOf(
+                            body.totalResponses.toString() to "Total Responses",
+                            body.summary.count { it.type == "star_rating" }.toString() to "Rated Questions"
+                        )
                     )
+
+                    if (body.summary.isEmpty()) {
+                        container.addView(
+                            UiKit.emptyState(
+                                this@ResponsesActivity,
+                                R.drawable.ic_bar_chart,
+                                "No data yet",
+                                "Insights will appear once students respond"
+                            )
+                        )
+                        return
+                    }
 
                     body.summary.forEach { item ->
 
-                        addText(item.questionText, 18f)
-
-                        addText(
-                            "Answers: ${item.totalAnswers}"
+                        val (card, inner) = UiKit.card(this@ResponsesActivity)
+                        inner.addView(UiKit.cardTitle(this@ResponsesActivity, item.questionText))
+                        inner.addView(
+                            UiKit.captionText(
+                                this@ResponsesActivity,
+                                "${item.totalAnswers} answers"
+                            )
                         )
 
                         if (item.type == "star_rating") {
 
-                            addText(
-                                "Average Rating: ${
-                                    String.format(
-                                        "%.2f",
-                                        item.average ?: 0.0
-                                    )
-                                }"
+                            val avgRow = LinearLayout(this@ResponsesActivity)
+                            avgRow.orientation = LinearLayout.HORIZONTAL
+                            val avgRowParams = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT
                             )
+                            avgRowParams.topMargin = UiKit.dp(this@ResponsesActivity, 10)
+                            avgRow.layoutParams = avgRowParams
 
-                            addText(
-                                "Lower Feedback (<8): ${
-                                    item.lowerCount ?: 0
-                                }"
+                            avgRow.addView(
+                                UiKit.statusChip(
+                                    this@ResponsesActivity,
+                                    "Avg " + String.format("%.2f", item.average ?: 0.0),
+                                    R.color.brand_primary_container,
+                                    R.color.brand_primary
+                                )
                             )
+                            avgRow.addView(
+                                UiKit.statusChip(
+                                    this@ResponsesActivity,
+                                    "Lower <8: ${item.lowerCount ?: 0}",
+                                    R.color.semantic_warning_bg,
+                                    R.color.semantic_warning
+                                )
+                            )
+                            inner.addView(avgRow)
+                        }
 
-                            addBarChart(
+                        container.addView(card)
+
+                        if (item.type == "star_rating") {
+                            addChartCard(
                                 labels = listOf("Average", "Lower <8"),
                                 values = listOf(
                                     (item.average ?: 0.0).toFloat(),
@@ -295,26 +375,15 @@ class ResponsesActivity : AppCompatActivity() {
                                 ),
                                 title = "Rating Summary"
                             )
-
                         }
 
-
                         item.counts?.let { counts ->
-
-                            counts.forEach { entry ->
-                                addText(
-                                    "${entry.key}: ${entry.value}"
-                                )
-                            }
-
-                            addBarChart(
+                            addChartCard(
                                 labels = counts.keys.toList(),
                                 values = counts.values.map { it.toFloat() },
                                 title = item.questionText
                             )
                         }
-
-                        addText("--------------------")
                     }
                 }
 
@@ -355,33 +424,40 @@ class ResponsesActivity : AppCompatActivity() {
                         return
                     }
 
-                    addText(
-                        "Individual Responses (${body.totalResponses})",
-                        22f
-                    )
+                    sectionHeader("Individual Responses (${body.totalResponses})")
 
                     if (body.responses.isEmpty()) {
-                        addText("No responses yet")
+                        container.addView(
+                            UiKit.emptyState(
+                                this@ResponsesActivity,
+                                R.drawable.ic_group,
+                                "No responses yet",
+                                "Responses will appear here once submitted"
+                            )
+                        )
                         return
                     }
 
                     body.responses.forEach { item ->
 
-                        addText(item.studentName, 18f)
+                        val (card, inner) = UiKit.card(this@ResponsesActivity)
 
-                        addText(
-                            "Enrollment: ${item.enrollmentNumber}"
+                        inner.addView(UiKit.cardTitle(this@ResponsesActivity, item.studentName))
+                        inner.addView(
+                            UiKit.captionText(
+                                this@ResponsesActivity,
+                                "Enrollment: ${item.enrollmentNumber}  ·  Batch: ${item.batch}"
+                            )
                         )
-
-                        addText("Batch: ${item.batch}")
+                        inner.addView(UiKit.divider(this@ResponsesActivity))
 
                         item.answers.forEach { answer ->
-                            addText(
-                                "Answer: ${answer.answer}"
+                            inner.addView(
+                                UiKit.bodyText(this@ResponsesActivity, "${answer.answer}")
                             )
                         }
 
-                        addText("====================")
+                        container.addView(card)
                     }
                 }
 
@@ -422,154 +498,116 @@ class ResponsesActivity : AppCompatActivity() {
                         return
                     }
 
-                    addText(
-                        "Lower Feedback (${body.total})",
-                        22f
-                    )
+                    sectionHeader("Lower Feedback (${body.total})")
 
                     if (body.responses.isEmpty()) {
-                        addText("No lower feedback")
+                        container.addView(
+                            UiKit.emptyState(
+                                this@ResponsesActivity,
+                                R.drawable.ic_check_circle,
+                                "Nothing to review",
+                                "No ratings below 8 have been reported"
+                            )
+                        )
                         return
                     }
 
                     body.responses.forEach { item ->
 
-                        addText(item.studentName, 18f)
-                        addText("Batch: ${item.batch}")
+                        val (card, inner) = UiKit.card(this@ResponsesActivity)
+                        card.setStrokeColor(
+                            androidx.core.content.ContextCompat.getColor(
+                                this@ResponsesActivity, R.color.semantic_warning
+                            )
+                        )
+
+                        val headerRow = LinearLayout(this@ResponsesActivity)
+                        headerRow.orientation = LinearLayout.HORIZONTAL
+                        headerRow.gravity = android.view.Gravity.CENTER_VERTICAL
+
+                        val textCol = LinearLayout(this@ResponsesActivity)
+                        textCol.orientation = LinearLayout.VERTICAL
+                        textCol.layoutParams = LinearLayout.LayoutParams(
+                            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                        )
+                        textCol.addView(UiKit.cardTitle(this@ResponsesActivity, item.studentName))
+                        textCol.addView(UiKit.captionText(this@ResponsesActivity, "Batch: ${item.batch}"))
+                        headerRow.addView(textCol)
+                        headerRow.addView(
+                            UiKit.statusChip(
+                                this@ResponsesActivity, "Needs review",
+                                R.color.semantic_warning_bg, R.color.semantic_warning
+                            )
+                        )
+                        inner.addView(headerRow)
+                        inner.addView(UiKit.divider(this@ResponsesActivity))
 
                         item.answers.forEach { answer ->
-                            addText(
-                                "Answer: ${answer.answer}"
+                            inner.addView(
+                                UiKit.bodyText(this@ResponsesActivity, "${answer.answer}")
                             )
                         }
 
-                        val reFeedbackButton = Button(this@ResponsesActivity)
-                        reFeedbackButton.text = "Re-feedback"
+                        val actions = UiKit.wrapRow(this@ResponsesActivity)
 
-                        reFeedbackButton.setOnClickListener {
-
-                            val intent =
-                                Intent(
+                        actions.addView(
+                            UiKit.actionChip(
+                                this@ResponsesActivity, "Re-feedback",
+                                R.drawable.ic_edit, primary = true
+                            ) {
+                                val intent = Intent(
                                     this@ResponsesActivity,
                                     ReFeedbackActivity::class.java
                                 )
-
-                            intent.putExtra(
-                                "responseId",
-                                item._id
-                            )
-
-                            startActivity(intent)
-                        }
-
-                        container.addView(reFeedbackButton)
-
-                        addText("====================")
-
-                        val shareReFeedbackButton =
-                            Button(this@ResponsesActivity)
-
-                        shareReFeedbackButton.text = "Share Re-feedback"
-
-                        shareReFeedbackButton.setOnClickListener {
-
-                            val link =
-                                "feedbackapp://refeedback/${item._id}"
-
-                            val shareIntent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                type = "text/plain"
-
-                                putExtra(
-                                    Intent.EXTRA_TEXT,
-                                    "Please submit your re-feedback:\n$link"
-                                )
+                                intent.putExtra("responseId", item._id)
+                                startActivity(intent)
                             }
+                        )
 
-                            startActivity(
-                                Intent.createChooser(
-                                    shareIntent,
-                                    "Share Re-feedback"
-                                )
-                            )
-                        }
+                        actions.addView(
+                            UiKit.actionChip(
+                                this@ResponsesActivity, "Share",
+                                R.drawable.ic_share
+                            ) {
+                                val link = "feedbackapp://refeedback/${item._id}"
 
-                        container.addView(shareReFeedbackButton)
+                                val shareIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    type = "text/plain"
 
-                        val qrButton =
-                            Button(this@ResponsesActivity)
-
-                        qrButton.text = "Re-feedback QR"
-
-                        qrButton.setOnClickListener {
-
-                            val link =
-                                "feedbackapp://refeedback/${item._id}"
-
-                            try {
-
-                                val writer = QRCodeWriter()
-
-                                val bitMatrix = writer.encode(
-                                    link,
-                                    BarcodeFormat.QR_CODE,
-                                    700,
-                                    700
-                                )
-
-                                val bitmap = Bitmap.createBitmap(
-                                    700,
-                                    700,
-                                    Bitmap.Config.RGB_565
-                                )
-
-                                for (x in 0 until 700) {
-                                    for (y in 0 until 700) {
-
-                                        bitmap.setPixel(
-                                            x,
-                                            y,
-                                            if (bitMatrix[x, y])
-                                                android.graphics.Color.BLACK
-                                            else
-                                                android.graphics.Color.WHITE
-                                        )
-                                    }
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Please submit your re-feedback:\n$link"
+                                    )
                                 }
 
-                                val imageView =
-                                    ImageView(this@ResponsesActivity)
-
-                                imageView.setImageBitmap(bitmap)
-
-                                AlertDialog.Builder(
-                                    this@ResponsesActivity
+                                startActivity(
+                                    Intent.createChooser(
+                                        shareIntent,
+                                        "Share Re-feedback"
+                                    )
                                 )
-                                    .setTitle("Re-feedback")
-                                    .setMessage(
-                                        "Scan to submit re-feedback"
-                                    )
-                                    .setView(imageView)
-                                    .setPositiveButton(
-                                        "Close",
-                                        null
-                                    )
-                                    .show()
-
-                            } catch (e: Exception) {
-
-                                Toast.makeText(
-                                    this@ResponsesActivity,
-                                    "Could not generate QR: ${e.message}",
-                                    Toast.LENGTH_LONG
-                                ).show()
                             }
-                        }
+                        )
 
-                        container.addView(qrButton)
+                        actions.addView(
+                            UiKit.actionChip(
+                                this@ResponsesActivity, "QR Code",
+                                R.drawable.ic_qr_code
+                            ) {
+                                val link = "feedbackapp://refeedback/${item._id}"
+                                QrHelper.show(
+                                    this@ResponsesActivity,
+                                    link,
+                                    "Re-feedback",
+                                    "Scan to submit re-feedback"
+                                )
+                            }
+                        )
+
+                        inner.addView(actions)
+                        container.addView(card)
                     }
-
-
                 }
 
                 override fun onFailure(

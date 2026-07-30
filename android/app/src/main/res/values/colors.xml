@@ -2,4 +2,36 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Brand -->
+    <color name="brand_primary">#4338CA</color>
+    <color name="brand_primary_dark">#3730A3</color>
+    <color name="brand_primary_container">#E0E4FF</color>
+    <color name="brand_on_primary_container">#1E1B4B</color>
+    <color name="brand_accent">#7C3AED</color>
+
+    <!-- Neutrals -->
+    <color name="neutral_background">#F4F5FB</color>
+    <color name="neutral_surface">#FFFFFFFF</color>
+    <color name="neutral_surface_alt">#F0F1F8</color>
+    <color name="neutral_outline">#E2E4F0</color>
+    <color name="neutral_outline_strong">#C9CCE0</color>
+
+    <color name="text_primary">#1B1D2A</color>
+    <color name="text_secondary">#5B5F73</color>
+    <color name="text_tertiary">#8A8DA0</color>
+    <color name="text_on_primary">#FFFFFFFF</color>
+
+    <!-- Semantic -->
+    <color name="semantic_success">#15803D</color>
+    <color name="semantic_success_bg">#DCFCE7</color>
+    <color name="semantic_warning">#B45309</color>
+    <color name="semantic_warning_bg">#FEF3C7</color>
+    <color name="semantic_error">#B91C1C</color>
+    <color name="semantic_error_bg">#FEE2E2</color>
+    <color name="semantic_neutral">#4B5563</color>
+    <color name="semantic_neutral_bg">#E5E7EB</color>
+
+    <color name="star_filled">#F59E0B</color>
+    <color name="star_empty">#D8DAE8</color>
 </resources>

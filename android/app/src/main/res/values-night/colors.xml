@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Brand -->
+    <color name="brand_primary">#818CF8</color>
+    <color name="brand_primary_dark">#6366F1</color>
+    <color name="brand_primary_container">#312E6B</color>
+    <color name="brand_on_primary_container">#E0E4FF</color>
+    <color name="brand_accent">#A78BFA</color>
+
+    <!-- Neutrals -->
+    <color name="neutral_background">#13141C</color>
+    <color name="neutral_surface">#1C1E29</color>
+    <color name="neutral_surface_alt">#242634</color>
+    <color name="neutral_outline">#33364A</color>
+    <color name="neutral_outline_strong">#454866</color>
+
+    <color name="text_primary">#EDEEF7</color>
+    <color name="text_secondary">#B4B7CC</color>
+    <color name="text_tertiary">#8A8DA0</color>
+    <color name="text_on_primary">#0F1020</color>
+
+    <!-- Semantic -->
+    <color name="semantic_success">#4ADE80</color>
+    <color name="semantic_success_bg">#123120</color>
+    <color name="semantic_warning">#FBBF24</color>
+    <color name="semantic_warning_bg">#3A2A0C</color>
+    <color name="semantic_error">#F87171</color>
+    <color name="semantic_error_bg">#3B1414</color>
+    <color name="semantic_neutral">#B4B7CC</color>
+    <color name="semantic_neutral_bg">#2C2E3D</color>
+
+    <color name="star_filled">#FBBF24</color>
+    <color name="star_empty">#3A3C4E</color>
+</resources>

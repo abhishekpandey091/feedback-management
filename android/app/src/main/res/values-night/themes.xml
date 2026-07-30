@@ -1,7 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
     <style name="Base.Theme.FeedbackManagement" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+        <item name="colorPrimary">@color/brand_primary</item>
+        <item name="colorOnPrimary">@color/text_on_primary</item>
+        <item name="colorPrimaryContainer">@color/brand_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/brand_on_primary_container</item>
+
+        <item name="colorSecondary">@color/brand_accent</item>
+        <item name="colorOnSecondary">@color/text_on_primary</item>
+
+        <item name="colorError">@color/semantic_error</item>
+
+        <item name="android:colorBackground">@color/neutral_background</item>
+        <item name="colorSurface">@color/neutral_surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorOutline">@color/neutral_outline</item>
+        <item name="colorOutlineVariant">@color/neutral_outline</item>
+        <item name="colorSurfaceVariant">@color/neutral_surface_alt</item>
+
+        <item name="android:statusBarColor">@color/neutral_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">@color/neutral_background</item>
+
+        <item name="materialCardViewStyle">@style/Widget.Feedback.CardView</item>
+        <item name="materialButtonStyle">@style/Widget.Feedback.Button</item>
+        <item name="toolbarStyle">@style/Widget.Feedback.Toolbar</item>
+        <item name="textInputStyle">@style/Widget.Feedback.TextInputLayout</item>
     </style>
 </resources>

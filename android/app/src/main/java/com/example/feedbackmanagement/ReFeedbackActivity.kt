@@ -5,6 +5,9 @@ import android.text.InputType
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -24,6 +27,9 @@ class ReFeedbackActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_re_feedback)
+
+        findViewById<MaterialToolbar>(R.id.toolbar)
+            .setNavigationOnClickListener { finish() }
 
         formContainer =
             findViewById(R.id.reFeedbackFormContainer)
@@ -102,30 +108,37 @@ class ReFeedbackActivity : AppCompatActivity() {
 
         formContainer.removeAllViews()
         answerViews.clear()
+        statusText.text = ""
 
-        addText(currentForm.title, 24f)
+        val (headerCard, headerInner) = UiKit.card(this)
 
-        addText(
-            "Student: ${oldResponse.studentName}",
-            16f
+        val badge = UiKit.statusChip(
+            this, "Re-feedback",
+            R.color.brand_primary_container,
+            R.color.brand_primary
         )
+        headerInner.addView(badge)
+        headerInner.addView(UiKit.screenTitle(this, currentForm.title))
+        val description = currentForm.description
 
-        addText(
-            "Enrollment: ${oldResponse.enrollmentNumber}",
-            16f
-        )
+        if (!description.isNullOrBlank()) {
+            headerInner.addView(UiKit.bodyText(this, description))
+        }
+        formContainer.addView(headerCard)
 
-        addText(
-            "Batch: ${oldResponse.batch}",
-            16f
-        )
+        val (studentCard, studentInner) = UiKit.card(this)
+        studentInner.addView(UiKit.cardTitle(this, "Student Information"))
+        studentInner.addView(UiKit.bodyText(this, "Name: ${oldResponse.studentName}"))
+        studentInner.addView(UiKit.bodyText(this, "Enrollment: ${oldResponse.enrollmentNumber}"))
+        studentInner.addView(UiKit.bodyText(this, "Batch: ${oldResponse.batch}"))
+        formContainer.addView(studentCard)
 
         currentForm.questions.forEach { question ->
 
-            addText(
-                question.questionText +
-                        if (question.required) " *" else "",
-                18f
+            val (qCard, qInner) = UiKit.card(this)
+
+            qInner.addView(
+                UiKit.questionLabel(this, question.questionText, question.required)
             )
 
             val oldAnswer =
@@ -139,31 +152,38 @@ class ReFeedbackActivity : AppCompatActivity() {
                     oldAnswer
                 )
 
-            formContainer.addView(view)
+            qInner.addView(view)
+            formContainer.addView(qCard)
 
             answerViews[question._id] = view
         }
 
-        val reasonInput = EditText(this)
-
-        reasonInput.hint =
-            "Reason for rating below 8"
-
-        reasonInput.inputType =
-            InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_FLAG_MULTI_LINE
-
-        reasonInput.minLines = 2
-
-        reasonInput.setText(
-            oldResponse.lowRatingReason ?: ""
+        val reasonLayout = TextInputLayout(this)
+        reasonLayout.hint = "Reason for rating below 8"
+        reasonLayout.helperText = "Required when any star rating is below 8"
+        val reasonParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         )
+        reasonParams.topMargin = UiKit.dp(this, 4)
+        reasonLayout.layoutParams = reasonParams
 
-        formContainer.addView(reasonInput)
+        val reasonInput = TextInputEditText(this)
+        reasonInput.inputType =
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        reasonInput.minLines = 2
+        reasonInput.setText(oldResponse.lowRatingReason ?: "")
+        reasonLayout.addView(reasonInput)
 
-        val submitButton = Button(this)
+        formContainer.addView(reasonLayout)
 
-        submitButton.text = "Submit Re-feedback"
+        val submitButton = UiKit.primaryButton(this, "Submit Re-feedback")
+        val submitParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            UiKit.dp(this, 52)
+        )
+        submitParams.topMargin = UiKit.dp(this, 20)
+        submitButton.layoutParams = submitParams
 
         submitButton.setOnClickListener {
 
@@ -225,20 +245,21 @@ class ReFeedbackActivity : AppCompatActivity() {
             "short",
             "paragraph" -> {
 
-                EditText(this).apply {
+                val layout = TextInputLayout(this)
+                layout.hint = "Your answer"
 
-                    hint = "Your answer"
+                val edit = TextInputEditText(this)
+                edit.setText(oldAnswer?.toString() ?: "")
 
-                    setText(oldAnswer?.toString() ?: "")
-
-                    if (question.type == "paragraph") {
-                        minLines = 3
-
-                        inputType =
-                            InputType.TYPE_CLASS_TEXT or
-                                    InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                    }
+                if (question.type == "paragraph") {
+                    edit.minLines = 3
+                    edit.inputType =
+                        InputType.TYPE_CLASS_TEXT or
+                                InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 }
+
+                layout.addView(edit)
+                layout
             }
 
             "mcq",
@@ -339,29 +360,22 @@ class ReFeedbackActivity : AppCompatActivity() {
 
             "star_rating" -> {
 
-                RatingBar(
-                    this,
-                    null,
-                    android.R.attr.ratingBarStyleSmall
-                ).apply {
+                val starView = StarRatingView(this)
+                starView.maxStars = question.maxStars
+                starView.rating =
+                    (oldAnswer as? Number)?.toInt() ?: 0
 
-                    numStars = question.maxStars
-                    stepSize = 1f
-                    setIsIndicator(false)
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                params.topMargin = UiKit.dp(this, 6)
+                starView.layoutParams = params
 
-                    rating =
-                        (oldAnswer as? Number)
-                            ?.toFloat() ?: 0f
-
-                    layoutParams =
-                        LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                        )
-                }
+                starView
             }
 
-            else -> EditText(this)
+            else -> TextInputEditText(this)
         }
     }
 
@@ -379,9 +393,10 @@ class ReFeedbackActivity : AppCompatActivity() {
                 when (question.type) {
 
                     "short",
-                    "paragraph" ->
-                        (view as EditText)
-                            .text.toString().trim()
+                    "paragraph" -> {
+                        val layout = view as TextInputLayout
+                        (layout.editText?.text ?: "").toString().trim()
+                    }
 
                     "mcq",
                     "yes_no" -> {
@@ -439,8 +454,7 @@ class ReFeedbackActivity : AppCompatActivity() {
                     }
 
                     "star_rating" ->
-                        (view as RatingBar)
-                            .rating.toInt()
+                        (view as StarRatingView).rating
 
                     else -> ""
                 }
@@ -531,19 +545,5 @@ class ReFeedbackActivity : AppCompatActivity() {
                     }
                 }
             )
-    }
-
-    private fun addText(
-        text: String,
-        size: Float
-    ) {
-
-        val textView = TextView(this)
-
-        textView.text = text
-        textView.textSize = size
-        textView.setPadding(0, 12, 0, 8)
-
-        formContainer.addView(textView)
     }
 }

@@ -1,18 +1,16 @@
 package com.example.feedbackmanagement
 
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import android.graphics.Bitmap
-import android.widget.ImageView
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.qrcode.QRCodeWriter
-import android.widget.*
+
 class AdminFormsActivity : AppCompatActivity() {
 
     private lateinit var loadMoreButton: Button
@@ -35,6 +33,9 @@ class AdminFormsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_admin_forms)
 
+        findViewById<MaterialToolbar>(R.id.toolbar)
+            .setNavigationOnClickListener { finish() }
+
         formsContainer = findViewById(R.id.formsContainer)
         progressBar = findViewById(R.id.progressBar)
         statusText = findViewById(R.id.statusText)
@@ -55,9 +56,7 @@ class AdminFormsActivity : AppCompatActivity() {
 
         loadTeacherFilter()
 
-
         loadForms()
-
     }
 
     private fun loadTeacherFilter() {
@@ -127,7 +126,7 @@ class AdminFormsActivity : AppCompatActivity() {
                     call: Call<TeachersResponse>,
                     t: Throwable
                 ) {
-                    // Forms can still load without filter
+
                 }
             })
     }
@@ -179,7 +178,15 @@ class AdminFormsActivity : AppCompatActivity() {
                     }
 
                     if (forms.isEmpty() && currentPage == 1) {
-                        statusText.text = "No forms found"
+                        statusText.text = ""
+                        formsContainer.addView(
+                            UiKit.emptyState(
+                                this@AdminFormsActivity,
+                                R.drawable.ic_description,
+                                "No forms found",
+                                "Try a different teacher filter"
+                            )
+                        )
                     } else {
                         statusText.text = ""
 
@@ -208,111 +215,119 @@ class AdminFormsActivity : AppCompatActivity() {
             })
     }
 
-
-
     private fun addFormView(form: FormData, token: String) {
 
-        val title = TextView(this)
+        val (card, inner) = UiKit.card(this)
 
-        title.text = """
-            ${form.title}
-            ${form.description ?: ""}
-            Status: ${form.approvalStatus}
-            Active: ${if (form.isActive) "Yes" else "No"}
-        """.trimIndent()
+        inner.addView(UiKit.cardTitle(this, form.title))
 
-        title.textSize = 18f
-        title.setPadding(16, 24, 16, 12)
-
-        formsContainer.addView(title)
-
-        val editButton = Button(this)
-        editButton.text = "Edit Form"
-
-        editButton.setOnClickListener {
-
-            val intent = android.content.Intent(
-                this,
-                CreateFormActivity::class.java
-            )
-
-            intent.putExtra("FORM_ID", form._id)
-
-            startActivity(intent)
+        if (!form.description.isNullOrBlank()) {
+            inner.addView(UiKit.bodyText(this, form.description))
         }
 
-        val deleteButton = Button(this)
-        deleteButton.text = "Delete Form"
+        val chipRow = LinearLayout(this)
+        chipRow.orientation = LinearLayout.HORIZONTAL
+        chipRow.gravity = Gravity.CENTER_VERTICAL
+        val chipRowParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        chipRowParams.topMargin = UiKit.dp(this, 12)
+        chipRow.layoutParams = chipRowParams
+        chipRow.addView(UiKit.approvalChip(this, form.approvalStatus))
+        chipRow.addView(UiKit.activeChip(this, form.isActive))
+        inner.addView(chipRow)
 
-        deleteButton.setOnClickListener {
+        val actions = UiKit.wrapRow(this)
 
-            AlertDialog.Builder(this)
-                .setTitle("Delete Form")
-                .setMessage(
-                    "Delete \"${form.title}\"? All responses will also be permanently deleted."
-                )
-                .setPositiveButton("Delete") { _, _ ->
+        actions.addView(
+            UiKit.actionChip(this, "Responses", R.drawable.ic_bar_chart, primary = true) {
+                val intent = android.content.Intent(this, ResponsesActivity::class.java)
+                intent.putExtra("FORM_ID", form._id)
+                startActivity(intent)
+            }
+        )
 
-                    ApiClient.apiService
-                        .deleteForm(
-                            "Bearer $token",
-                            form._id
-                        )
-                        .enqueue(object : Callback<MessageResponse> {
+        actions.addView(
+            UiKit.actionChip(this, "Edit", R.drawable.ic_edit) {
+                val intent = android.content.Intent(this, CreateFormActivity::class.java)
+                intent.putExtra("FORM_ID", form._id)
+                startActivity(intent)
+            }
+        )
 
-                            override fun onResponse(
-                                call: Call<MessageResponse>,
-                                response: Response<MessageResponse>
-                            ) {
-                                if (response.isSuccessful) {
-                                    Toast.makeText(
-                                        this@AdminFormsActivity,
-                                        "Form deleted successfully",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-
-                                    loadForms()
-                                } else {
-                                    Toast.makeText(
-                                        this@AdminFormsActivity,
-                                        "Delete failed (${response.code()})",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            }
-
-                            override fun onFailure(
-                                call: Call<MessageResponse>,
-                                t: Throwable
-                            ) {
-                                Toast.makeText(
-                                    this@AdminFormsActivity,
-                                    "Connection error: ${t.message}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        })
+        if (form.approvalStatus == "pending") {
+            actions.addView(
+                UiKit.actionChip(this, "Approve", R.drawable.ic_check_circle) {
+                    approveForm(form._id, token)
                 }
-                .setNegativeButton("Cancel", null)
-                .show()
+            )
+            actions.addView(
+                UiKit.actionChip(this, "Reject", R.drawable.ic_cancel, destructive = true) {
+                    showRejectDialog(form._id, token)
+                }
+            )
+        }
 
-            val deleteButton = Button(this)
-            deleteButton.text = "Delete Form"
+        if (form.approvalStatus == "approved") {
+            if (form.isActive) {
+                actions.addView(
+                    UiKit.actionChip(this, "Deactivate", R.drawable.ic_cancel) {
+                        deactivateForm(form._id, token)
+                    }
+                )
+            } else {
+                actions.addView(
+                    UiKit.actionChip(this, "Activate", R.drawable.ic_check_circle) {
+                        activateForm(form._id, token)
+                    }
+                )
+            }
+        }
 
-            deleteButton.setOnClickListener {
+        if (form.isActive) {
+            actions.addView(
+                UiKit.actionChip(this, "Share", R.drawable.ic_share) {
+                    val link = "feedbackapp://form/${form._id}"
 
+                    val shareIntent = android.content.Intent().apply {
+                        action = android.content.Intent.ACTION_SEND
+                        type = "text/plain"
+
+                        putExtra(
+                            android.content.Intent.EXTRA_TEXT,
+                            "Please submit your feedback:\n$link"
+                        )
+                    }
+
+                    startActivity(
+                        android.content.Intent.createChooser(
+                            shareIntent,
+                            "Share Feedback Form"
+                        )
+                    )
+                }
+            )
+        }
+
+        actions.addView(
+            UiKit.actionChip(this, "QR Code", R.drawable.ic_qr_code) {
+                val link = "feedbackapp://form/${form._id}"
+                QrHelper.show(this, link, form.title, "Scan to open feedback form")
+            }
+        )
+
+        actions.addView(
+            UiKit.actionChip(this, "Delete", R.drawable.ic_delete, destructive = true) {
                 AlertDialog.Builder(this)
                     .setTitle("Delete Form")
                     .setMessage(
-                        "Delete \"${form.title}\"? All responses for this form will also be deleted."
+                        "Delete \"${form.title}\"? All responses will also be permanently deleted."
                     )
                     .setPositiveButton("Delete") { _, _ ->
 
                         ApiClient.apiService
-                            .deleteForm(
-                                "Bearer $token",
-                                form._id
-                            )
+                            .deleteForm("Bearer $token", form._id)
                             .enqueue(object : Callback<MessageResponse> {
 
                                 override fun onResponse(
@@ -320,7 +335,6 @@ class AdminFormsActivity : AppCompatActivity() {
                                     response: Response<MessageResponse>
                                 ) {
                                     if (response.isSuccessful) {
-
                                         Toast.makeText(
                                             this@AdminFormsActivity,
                                             "Form deleted successfully",
@@ -328,9 +342,7 @@ class AdminFormsActivity : AppCompatActivity() {
                                         ).show()
 
                                         loadForms()
-
                                     } else {
-
                                         Toast.makeText(
                                             this@AdminFormsActivity,
                                             "Delete failed (${response.code()})",
@@ -354,168 +366,10 @@ class AdminFormsActivity : AppCompatActivity() {
                     .setNegativeButton("Cancel", null)
                     .show()
             }
+        )
 
-            formsContainer.addView(deleteButton)
-        }
-
-
-
-        formsContainer.addView(deleteButton)
-
-        formsContainer.addView(editButton)
-
-        // Pending forms → Approve / Reject
-        if (form.approvalStatus == "pending") {
-
-            val approveButton = Button(this)
-            approveButton.text = "Approve"
-
-            approveButton.setOnClickListener {
-                approveForm(form._id, token)
-            }
-
-            formsContainer.addView(approveButton)
-
-            val rejectButton = Button(this)
-            rejectButton.text = "Reject"
-
-            rejectButton.setOnClickListener {
-                showRejectDialog(form._id, token)
-            }
-
-            formsContainer.addView(rejectButton)
-        }
-
-        if (form.approvalStatus == "approved") {
-
-            val activeButton = Button(this)
-
-            if (form.isActive) {
-
-                activeButton.text = "Deactivate"
-
-                activeButton.setOnClickListener {
-                    deactivateForm(form._id, token)
-                }
-
-            } else {
-
-                activeButton.text = "Activate"
-
-                activeButton.setOnClickListener {
-                    activateForm(form._id, token)
-                }
-            }
-
-            formsContainer.addView(activeButton)
-        }
-
-        // Active form → Share
-        if (form.isActive) {
-
-            val shareButton = Button(this)
-            shareButton.text = "Share Form"
-
-            shareButton.setOnClickListener {
-
-                val link =
-                    "feedbackapp://form/${form._id}"
-
-                val shareIntent = android.content.Intent().apply {
-                    action = android.content.Intent.ACTION_SEND
-                    type = "text/plain"
-
-                    putExtra(
-                        android.content.Intent.EXTRA_TEXT,
-                        "Please submit your feedback:\n$link"
-                    )
-                }
-
-                startActivity(
-                    android.content.Intent.createChooser(
-                        shareIntent,
-                        "Share Feedback Form"
-                    )
-                )
-            }
-
-            formsContainer.addView(shareButton)
-        }
-
-        val qrButton = Button(this)
-        qrButton.text = "Show QR Code"
-
-        qrButton.setOnClickListener {
-
-            val link = "feedbackapp://form/${form._id}"
-
-            try {
-                val writer = QRCodeWriter()
-
-                val bitMatrix = writer.encode(
-                    link,
-                    BarcodeFormat.QR_CODE,
-                    700,
-                    700
-                )
-
-                val bitmap = Bitmap.createBitmap(
-                    700,
-                    700,
-                    Bitmap.Config.RGB_565
-                )
-
-                for (x in 0 until 700) {
-                    for (y in 0 until 700) {
-                        bitmap.setPixel(
-                            x,
-                            y,
-                            if (bitMatrix[x, y])
-                                android.graphics.Color.BLACK
-                            else
-                                android.graphics.Color.WHITE
-                        )
-                    }
-                }
-
-                val imageView = ImageView(this)
-                imageView.setImageBitmap(bitmap)
-
-                AlertDialog.Builder(this)
-                    .setTitle(form.title)
-                    .setMessage("Scan to open feedback form")
-                    .setView(imageView)
-                    .setPositiveButton("Close", null)
-                    .show()
-
-            } catch (e: Exception) {
-                statusText.text =
-                    "Could not generate QR: ${e.message}"
-            }
-        }
-
-        formsContainer.addView(qrButton)
-
-
-        val responsesButton = Button(this)
-        responsesButton.text = "Responses"
-
-        responsesButton.setOnClickListener {
-
-            val intent = android.content.Intent(
-                this,
-                ResponsesActivity::class.java
-            )
-
-            intent.putExtra(
-                "FORM_ID",
-                form._id
-            )
-
-            startActivity(intent)
-        }
-
-        formsContainer.addView(responsesButton)
+        inner.addView(actions)
+        formsContainer.addView(card)
     }
 
     private fun approveForm(formId: String, token: String) {
@@ -554,6 +408,8 @@ class AdminFormsActivity : AppCompatActivity() {
 
         val input = EditText(this)
         input.hint = "Rejection reason"
+        val pad = UiKit.dp(this, 20)
+        input.setPadding(pad, UiKit.dp(this, 8), pad, 0)
 
         AlertDialog.Builder(this)
             .setTitle("Reject Form")

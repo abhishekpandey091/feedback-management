@@ -2,7 +2,7 @@ package com.example.feedbackmanagement
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Button
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 
 class TeacherDashboardActivity : AppCompatActivity() {
@@ -11,9 +11,9 @@ class TeacherDashboardActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_teacher_dashboard)
 
-        val logoutButton = findViewById<Button>(R.id.logoutButton)
-        val myFormsButton = findViewById<Button>(R.id.myFormsButton)
-        val createFormButton = findViewById<Button>(R.id.createFormButton)
+        val logoutButton = findViewById<View>(R.id.logoutButton)
+        val myFormsButton = findViewById<View>(R.id.myFormsButton)
+        val createFormButton = findViewById<View>(R.id.createFormButton)
 
         val sessionManager = SessionManager(this)
 

@@ -1,15 +1,13 @@
 package com.example.feedbackmanagement
 
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Color
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.qrcode.QRCodeWriter
+import com.google.android.material.appbar.MaterialToolbar
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -24,6 +22,9 @@ class MyFormsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_my_forms)
+
+        findViewById<MaterialToolbar>(R.id.toolbar)
+            .setNavigationOnClickListener { finish() }
 
         progressBar = findViewById(R.id.formsProgressBar)
         statusText = findViewById(R.id.formsStatusText)
@@ -74,7 +75,15 @@ class MyFormsActivity : AppCompatActivity() {
                     formsContainer.removeAllViews()
 
                     if (forms.isEmpty()) {
-                        statusText.text = "No forms found"
+                        statusText.text = ""
+                        formsContainer.addView(
+                            UiKit.emptyState(
+                                this@MyFormsActivity,
+                                R.drawable.ic_description,
+                                "No forms yet",
+                                "Create your first feedback form to get started"
+                            )
+                        )
                         return
                     }
 
@@ -101,230 +110,155 @@ class MyFormsActivity : AppCompatActivity() {
         token: String
     ) {
 
-        // FORM INFORMATION
-        val formText = TextView(this)
+        val (card, inner) = UiKit.card(this)
 
-        formText.text = """
-            ${form.title}
-            ${form.description ?: ""}
-            Status: ${form.approvalStatus}
-            Active: ${if (form.isActive) "Yes" else "No"}
-        """.trimIndent()
+        inner.addView(UiKit.cardTitle(this, form.title))
 
-        formText.textSize = 18f
-        formText.setPadding(16, 24, 16, 12)
-
-        formsContainer.addView(formText)
-
-
-        // =========================
-        // EDIT
-        // =========================
-
-        val editButton = Button(this)
-        editButton.text = "Edit Form"
-
-        editButton.setOnClickListener {
-
-            val intent = Intent(
-                this,
-                CreateFormActivity::class.java
-            )
-
-            intent.putExtra("FORM_ID", form._id)
-
-            startActivity(intent)
+        if (!form.description.isNullOrBlank()) {
+            inner.addView(UiKit.bodyText(this, form.description))
         }
 
-        formsContainer.addView(editButton)
+        val chipRow = LinearLayout(this)
+        chipRow.orientation = LinearLayout.HORIZONTAL
+        chipRow.gravity = Gravity.CENTER_VERTICAL
+        val chipRowParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        chipRowParams.topMargin = UiKit.dp(this, 12)
+        chipRow.layoutParams = chipRowParams
+        chipRow.addView(UiKit.approvalChip(this, form.approvalStatus))
+        chipRow.addView(UiKit.activeChip(this, form.isActive))
+        inner.addView(chipRow)
 
+        val actions = UiKit.wrapRow(this)
 
-        // =========================
-        // ACTIVATE / DEACTIVATE
-        // Only approved forms
-        // =========================
-
-        if (form.approvalStatus == "approved") {
-
-            val activeButton = Button(this)
-
-            if (form.isActive) {
-
-                activeButton.text = "Deactivate"
-
-                activeButton.setOnClickListener {
-                    deactivateForm(
-                        form._id,
-                        token
-                    )
-                }
-
-            } else {
-
-                activeButton.text = "Activate"
-
-                activeButton.setOnClickListener {
-                    activateForm(
-                        form._id,
-                        token
-                    )
-                }
+        // RESPONSES
+        actions.addView(
+            UiKit.actionChip(this, "Responses", R.drawable.ic_bar_chart, primary = true) {
+                val intent = Intent(this, ResponsesActivity::class.java)
+                intent.putExtra("FORM_ID", form._id)
+                startActivity(intent)
             }
+        )
 
-            formsContainer.addView(activeButton)
+        // EDIT
+        actions.addView(
+            UiKit.actionChip(this, "Edit", R.drawable.ic_edit) {
+                val intent = Intent(this, CreateFormActivity::class.java)
+                intent.putExtra("FORM_ID", form._id)
+                startActivity(intent)
+            }
+        )
+
+        // ACTIVATE / DEACTIVATE (approved forms only)
+        if (form.approvalStatus == "approved") {
+            if (form.isActive) {
+                actions.addView(
+                    UiKit.actionChip(this, "Deactivate", R.drawable.ic_cancel) {
+                        deactivateForm(form._id, token)
+                    }
+                )
+            } else {
+                actions.addView(
+                    UiKit.actionChip(this, "Activate", R.drawable.ic_check_circle) {
+                        activateForm(form._id, token)
+                    }
+                )
+            }
         }
 
-
-        // =========================
-        // SHARE
-        // Only active forms
-        // =========================
-
+        // SHARE + QR (active forms only)
         if (form.isActive) {
+            actions.addView(
+                UiKit.actionChip(this, "Share", R.drawable.ic_share) {
+                    val link = "feedbackapp://form/${form._id}"
 
-            val shareButton = Button(this)
-            shareButton.text = "Share Form"
-
-            shareButton.setOnClickListener {
-
-                val link =
-                    "feedbackapp://form/${form._id}"
-
-                val shareIntent =
-                    Intent(Intent.ACTION_SEND).apply {
-
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-
                         putExtra(
                             Intent.EXTRA_TEXT,
                             "Please submit your feedback:\n$link"
                         )
                     }
 
-                startActivity(
-                    Intent.createChooser(
-                        shareIntent,
-                        "Share Feedback Form"
+                    startActivity(
+                        Intent.createChooser(shareIntent, "Share Feedback Form")
                     )
-                )
-            }
-
-            formsContainer.addView(shareButton)
-
-
-            // =========================
-            // QR CODE
-            // =========================
-
-            val qrButton = Button(this)
-            qrButton.text = "Show QR Code"
-
-            qrButton.setOnClickListener {
-                showQrCode(
-                    form._id,
-                    form.title
-                )
-            }
-
-            formsContainer.addView(qrButton)
-        }
-
-
-        // =========================
-        // RESPONSES
-        // =========================
-
-        val responsesButton = Button(this)
-        responsesButton.text = "Responses"
-
-        responsesButton.setOnClickListener {
-
-            val intent = Intent(
-                this,
-                ResponsesActivity::class.java
+                }
             )
 
-            intent.putExtra(
-                "FORM_ID",
-                form._id
+            actions.addView(
+                UiKit.actionChip(this, "QR Code", R.drawable.ic_qr_code) {
+                    val link = "feedbackapp://form/${form._id}"
+                    QrHelper.show(this, link, form.title, "Scan to open feedback form")
+                }
             )
-
-            startActivity(intent)
         }
 
-        formsContainer.addView(responsesButton)
-
-
-        // =========================
         // DELETE
-        // =========================
+        actions.addView(
+            UiKit.actionChip(this, "Delete", R.drawable.ic_delete, destructive = true) {
+                AlertDialog.Builder(this)
+                    .setTitle("Delete Form")
+                    .setMessage(
+                        "Delete \"${form.title}\"? " +
+                                "All responses for this form " +
+                                "will also be permanently deleted."
+                    )
+                    .setPositiveButton("Delete") { _, _ ->
 
-        val deleteButton = Button(this)
-        deleteButton.text = "Delete Form"
+                        ApiClient.apiService
+                            .deleteForm("Bearer $token", form._id)
+                            .enqueue(
+                                object : Callback<MessageResponse> {
 
-        deleteButton.setOnClickListener {
+                                    override fun onResponse(
+                                        call: Call<MessageResponse>,
+                                        response: Response<MessageResponse>
+                                    ) {
 
-            AlertDialog.Builder(this)
-                .setTitle("Delete Form")
-                .setMessage(
-                    "Delete \"${form.title}\"? " +
-                            "All responses for this form " +
-                            "will also be permanently deleted."
-                )
-                .setPositiveButton("Delete") { _, _ ->
+                                        if (response.isSuccessful) {
 
-                    ApiClient.apiService
-                        .deleteForm(
-                            "Bearer $token",
-                            form._id
-                        )
-                        .enqueue(
-                            object : Callback<MessageResponse> {
+                                            Toast.makeText(
+                                                this@MyFormsActivity,
+                                                "Form deleted successfully",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
 
-                                override fun onResponse(
-                                    call: Call<MessageResponse>,
-                                    response: Response<MessageResponse>
-                                ) {
+                                            loadForms()
 
-                                    if (response.isSuccessful) {
+                                        } else {
+
+                                            Toast.makeText(
+                                                this@MyFormsActivity,
+                                                "Delete failed (${response.code()})",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+
+                                    override fun onFailure(
+                                        call: Call<MessageResponse>,
+                                        t: Throwable
+                                    ) {
 
                                         Toast.makeText(
                                             this@MyFormsActivity,
-                                            "Form deleted successfully",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-
-                                        loadForms()
-
-                                    } else {
-
-                                        Toast.makeText(
-                                            this@MyFormsActivity,
-                                            "Delete failed (${response.code()})",
+                                            "Connection error: ${t.message}",
                                             Toast.LENGTH_LONG
                                         ).show()
                                     }
                                 }
+                            )
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        )
 
-                                override fun onFailure(
-                                    call: Call<MessageResponse>,
-                                    t: Throwable
-                                ) {
-
-                                    Toast.makeText(
-                                        this@MyFormsActivity,
-                                        "Connection error: ${t.message}",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            }
-                        )
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-        }
-
-        formsContainer.addView(deleteButton)
+        inner.addView(actions)
+        formsContainer.addView(card)
     }
 
 
@@ -420,74 +354,6 @@ class MyFormsActivity : AppCompatActivity() {
                 statusText.text =
                     "Connection error: ${t.message}"
             }
-        }
-    }
-
-
-    // =========================
-    // QR CODE
-    // =========================
-
-    private fun showQrCode(
-        formId: String,
-        title: String
-    ) {
-
-        try {
-
-            val link =
-                "feedbackapp://form/$formId"
-
-            val writer = QRCodeWriter()
-
-            val bitMatrix = writer.encode(
-                link,
-                BarcodeFormat.QR_CODE,
-                700,
-                700
-            )
-
-            val bitmap = Bitmap.createBitmap(
-                700,
-                700,
-                Bitmap.Config.RGB_565
-            )
-
-            for (x in 0 until 700) {
-
-                for (y in 0 until 700) {
-
-                    bitmap.setPixel(
-                        x,
-                        y,
-                        if (bitMatrix[x, y])
-                            Color.BLACK
-                        else
-                            Color.WHITE
-                    )
-                }
-            }
-
-            val imageView = ImageView(this)
-
-            imageView.setImageBitmap(bitmap)
-
-            AlertDialog.Builder(this)
-                .setTitle(title)
-                .setMessage(
-                    "Scan to open feedback form"
-                )
-                .setView(imageView)
-                .setPositiveButton(
-                    "Close",
-                    null
-                )
-                .show()
-
-        } catch (e: Exception) {
-
-            statusText.text =
-                "Could not generate QR: ${e.message}"
         }
     }
 }

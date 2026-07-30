@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -18,6 +19,9 @@ class ManageTeachersActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_manage_teachers)
+
+        findViewById<MaterialToolbar>(R.id.toolbar)
+            .setNavigationOnClickListener { finish() }
 
         val nameInput = findViewById<EditText>(R.id.nameInput)
         val emailInput = findViewById<EditText>(R.id.emailInput)
@@ -127,66 +131,22 @@ class ManageTeachersActivity : AppCompatActivity() {
                         val teachers = response.body()!!.teachers
 
                         if (teachers.isEmpty()) {
-                            statusText.text = "No teachers found"
+                            statusText.text = ""
+                            teachersContainer.addView(
+                                UiKit.emptyState(
+                                    this@ManageTeachersActivity,
+                                    R.drawable.ic_group,
+                                    "No teachers yet",
+                                    "Teachers you add will appear here"
+                                )
+                            )
                             return
                         }
 
                         statusText.text = ""
 
                         for (teacher in teachers) {
-
-                            val textView =
-                                TextView(this@ManageTeachersActivity)
-
-                            textView.text = """
-                                ${teacher.fullName}
-                                ${teacher.email}
-                                Status: ${if (teacher.isActive) "Active" else "Inactive"}
-                            """.trimIndent()
-
-                            textView.textSize = 17f
-                            textView.setPadding(16, 20, 16, 20)
-
-                            teachersContainer.addView(textView)
-
-                            val toggleButton = Button(this@ManageTeachersActivity)
-
-                            toggleButton.text =
-                                if (teacher.isActive) "Deactivate" else "Activate"
-
-                            toggleButton.setOnClickListener {
-
-                                ApiClient.apiService
-                                    .toggleTeacherStatus(
-                                        "Bearer $token",
-                                        teacher._id
-                                    )
-                                    .enqueue(object : Callback<TeacherResponse> {
-
-                                        override fun onResponse(
-                                            call: Call<TeacherResponse>,
-                                            response: Response<TeacherResponse>
-                                        ) {
-                                            if (response.isSuccessful) {
-                                                statusText.text = "Teacher status updated"
-                                                loadTeachers()
-                                            } else {
-                                                statusText.text =
-                                                    "Failed to update (${response.code()})"
-                                            }
-                                        }
-
-                                        override fun onFailure(
-                                            call: Call<TeacherResponse>,
-                                            t: Throwable
-                                        ) {
-                                            statusText.text =
-                                                "Connection error: ${t.message}"
-                                        }
-                                    })
-                            }
-
-                            teachersContainer.addView(toggleButton)
+                            addTeacherCard(teacher, token)
                         }
 
                     } else {
@@ -204,5 +164,74 @@ class ManageTeachersActivity : AppCompatActivity() {
                         "Connection error: ${t.message}"
                 }
             })
+    }
+
+    private fun addTeacherCard(teacher: TeacherData, token: String) {
+
+        val (card, inner) = UiKit.card(this)
+
+        val headerRow = LinearLayout(this)
+        headerRow.orientation = LinearLayout.HORIZONTAL
+        headerRow.gravity = android.view.Gravity.CENTER_VERTICAL
+
+        val textCol = LinearLayout(this)
+        textCol.orientation = LinearLayout.VERTICAL
+        val textColParams = LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        )
+        textCol.layoutParams = textColParams
+
+        textCol.addView(UiKit.cardTitle(this, teacher.fullName))
+        textCol.addView(UiKit.bodyText(this, teacher.email))
+
+        headerRow.addView(textCol)
+        headerRow.addView(UiKit.activeChip(this, teacher.isActive))
+
+        inner.addView(headerRow)
+
+        val actions = UiKit.wrapRow(this)
+
+        actions.addView(
+            UiKit.actionChip(
+                this,
+                if (teacher.isActive) "Deactivate" else "Activate",
+                iconRes = if (teacher.isActive) R.drawable.ic_cancel else R.drawable.ic_check_circle,
+                destructive = teacher.isActive
+            ) {
+                ApiClient.apiService
+                    .toggleTeacherStatus(
+                        "Bearer $token",
+                        teacher._id
+                    )
+                    .enqueue(object : Callback<TeacherResponse> {
+
+                        override fun onResponse(
+                            call: Call<TeacherResponse>,
+                            response: Response<TeacherResponse>
+                        ) {
+                            if (response.isSuccessful) {
+                                statusText.text = "Teacher status updated"
+                                loadTeachers()
+                            } else {
+                                statusText.text =
+                                    "Failed to update (${response.code()})"
+                            }
+                        }
+
+                        override fun onFailure(
+                            call: Call<TeacherResponse>,
+                            t: Throwable
+                        ) {
+                            statusText.text =
+                                "Connection error: ${t.message}"
+                        }
+                    })
+            }
+        )
+
+        inner.addView(actions)
+        teachersContainer.addView(card)
     }
 }
